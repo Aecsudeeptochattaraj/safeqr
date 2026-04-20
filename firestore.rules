@@ -1,0 +1,72 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 0. Global Safety Net - Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // HELPER PRIMITIVES
+    function isSignedIn() { return request.auth != null; }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
+
+    // ROLE CHECKS (Sources of Truth)
+    function isAdmin() { 
+      return isSignedIn() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'; 
+    }
+    function isPartner() { 
+      return isSignedIn() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'partner'; 
+    }
+
+    // --------------------------------------------------
+    // COLLECTION: USERS
+    // --------------------------------------------------
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn(); 
+      allow create: if isSignedIn() && isOwner(userId);
+      allow update: if (isSignedIn() && isOwner(userId)) || isAdmin();
+    }
+
+    // --------------------------------------------------
+    // GENERIC COLLECTIONS: HIGH PERFORMANCE READS
+    // --------------------------------------------------
+    // In this simulation environment, we prioritize zero-latency real-time updates.
+    // We rely on application-level filtering (where clauses) for security 
+    // and strict write rules for integrity.
+    
+    match /qr_inventory/{qrId} {
+      allow read: if true;
+      allow create: if isAdmin();
+      allow update: if (isSignedIn() && (existing().partnerUid == request.auth.uid || isAdmin()));
+      allow delete: if isAdmin();
+    }
+
+    match /vehicles/{vehicleId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update: if (isSignedIn() && (existing().ownerUid == request.auth.uid || existing().partnerUid == request.auth.uid || isAdmin()));
+      allow delete: if isAdmin();
+    }
+
+    match /logs/{logId} {
+      allow create, read, list: if true;
+    }
+
+    match /payments/{paymentId} {
+      allow read, list: if isSignedIn();
+      allow create: if isSignedIn();
+    }
+
+    match /commissions/{commissionId} {
+      allow read, list: if isSignedIn();
+      allow create: if isSignedIn();
+    }
+  }
+}

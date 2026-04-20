@@ -1,0 +1,125 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 0. Global Safety Net - Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // HELPER PRIMITIVES
+    function isSignedIn() { return request.auth != null; }
+    function isEmailVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
+    function isValidId(id) { return id is string && id.size() <= 64 && id.matches('^[a-zA-Z0-9_-]+$'); }
+
+    // ROLE CHECKS (Sources of Truth)
+    // We use a cached get() for the user's own profile
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function isAdmin() { 
+      return isSignedIn() && getUserData().role == 'admin'; 
+    }
+    function isPartner() { 
+      return isSignedIn() && getUserData().role == 'partner'; 
+    }
+
+    // ENTITY VALIDATIONS
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'role']) &&
+             data.uid is string && data.email is string &&
+             data.role in ['user', 'partner', 'admin'];
+    }
+
+    function isValidVehicle(data) {
+      return data.keys().hasAll(['ownerUid', 'vehicleNumber', 'ownerName', 'phone', 'planId', 'status']) &&
+             data.ownerUid is string && 
+             data.vehicleNumber is string && data.vehicleNumber.size() <= 20 &&
+             data.ownerName is string && data.ownerName.size() <= 100 &&
+             data.phone is string && data.phone.size() <= 20 &&
+             data.planId in ['2yr', '5yr'] &&
+             data.status in ['active', 'expired', 'pending'];
+    }
+
+    // --------------------------------------------------
+    // COLLECTION: USERS
+    // --------------------------------------------------
+    match /users/{userId} {
+      // Owners can read their own, Admin can read all
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      
+      // Standard users can only create their own profile as 'user'
+      // Sales partners can be created by admins
+      allow create: if isSignedIn() && isOwner(userId) && 
+                    isValidUser(incoming()) && 
+                    incoming().role == 'user';
+      
+      allow update: if (isAdmin() || (isOwner(userId) && incoming().role == existing().role)) && 
+                    isValidUser(incoming());
+    }
+
+    // --------------------------------------------------
+    // COLLECTION: VEHICLES
+    // --------------------------------------------------
+    match /vehicles/{vehicleId} {
+      // Public SCAN: get() is allowed for everyone to see the contact portal
+      allow get: if true;
+      
+      // LISTING: Filtered by ownership or Partner affiliation or Admin
+      allow list: if isSignedIn() && (
+        resource.data.ownerUid == request.auth.uid || 
+        resource.data.partnerUid == request.auth.uid || 
+        isAdmin()
+      );
+      
+      allow create: if isSignedIn() && (
+        isOwner(incoming().ownerUid) || 
+        isAdmin() || 
+        (isPartner() && incoming().partnerUid == request.auth.uid)
+      ) && isValidVehicle(incoming());
+
+      allow update: if isSignedIn() && (isOwner(existing().ownerUid) || isAdmin()) && (
+        // Action: Renewal/Status Change
+        (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'subscriptionExpiry'])) ||
+        // Action: Profile Change (Phone/Name)
+        (incoming().diff(existing()).affectedKeys().hasOnly(['ownerName', 'phone', 'whatsapp', 'emergencyContact'])) ||
+        // Action: Admin override
+        isAdmin()
+      ) && isValidVehicle(incoming());
+
+      allow delete: if isAdmin();
+    }
+
+    // --------------------------------------------------
+    // COLLECTION: LOGS
+    // --------------------------------------------------
+    match /logs/{logId} {
+      // Public can create logs (e.g., scan events)
+      allow create: if true; 
+      // Only admins can audit logs
+      allow read, list: if isAdmin();
+    }
+
+    // --------------------------------------------------
+    // COLLECTION: PAYMENTS
+    // --------------------------------------------------
+    match /payments/{paymentId} {
+      allow get, list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
+    }
+
+    // --------------------------------------------------
+    // COLLECTION: COMMISSIONS
+    // --------------------------------------------------
+    match /commissions/{commissionId} {
+      allow get, list: if isSignedIn() && (resource.data.partnerUid == request.auth.uid || isAdmin());
+      // Only admin can "approve/create" a commission doc for a partner
+      allow create: if isAdmin();
+    }
+  }
+}

@@ -1,0 +1,387 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { motion } from 'motion/react';
+import { Car, Smartphone, MessageCircle, CreditCard, CheckCircle, ShieldCheck, Camera, Sparkles, Loader2, RefreshCw } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
+import { db } from '../lib/firebase';
+import { GoogleGenAI } from '@google/genai';
+import { doc, setDoc, serverTimestamp, collection } from 'firebase/firestore';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+export default function RegisterVehicle() {
+  const { user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
+  const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    vehicleNumber: '',
+    ownerName: '',
+    phone: '',
+    whatsapp: '',
+    emergencyContact: '',
+    planId: '2yr' as '2yr' | '5yr'
+  });
+
+  const [isAiScanning, setIsAiScanning] = useState(false);
+
+  useEffect(() => {
+    console.log('RegisterVehicle mounted. User:', user?.email);
+  }, [user]);
+
+  const handleAiScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsAiScanning(true);
+    try {
+      const apiKey = process.env.GEMINI_API_KEY || '';
+      const ai = new GoogleGenAI({ apiKey });
+      
+      const reader = new FileReader();
+      const base64Data = await new Promise<string>((resolve) => {
+        reader.onload = () => resolve((reader.result as string).split(',')[1]);
+        reader.readAsDataURL(file);
+      });
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: {
+          parts: [
+            { text: "Extract the vehicle license plate number from this image. Only return the number, nothing else." },
+            { inlineData: { mimeType: file.type, data: base64Data } }
+          ]
+        }
+      });
+
+      const extracted = response.text?.trim() || '';
+      if (extracted) {
+        setFormData(prev => ({ ...prev, vehicleNumber: extracted.toUpperCase() }));
+      }
+    } catch (err) {
+      console.error('AI Scan failed:', err);
+    } finally {
+      setIsAiScanning(false);
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handleNext = () => setStep(s => s + 1);
+  const handleBack = () => setStep(s => s - 1);
+
+  const simulatePayment = async () => {
+    setLoading(true);
+    // Simulate payment API delay
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    try {
+      const vehicleRef = doc(collection(db, 'vehicles'));
+      const expiryDate = new Date();
+      expiryDate.setFullYear(expiryDate.getFullYear() + (formData.planId === '5yr' ? 5 : 2));
+
+      await setDoc(vehicleRef, {
+        id: vehicleRef.id,
+        ownerUid: user?.uid,
+        ...formData,
+        qrId: null, // Self-service users receive a digital setup instantly
+        status: 'active',
+        subscriptionExpiry: expiryDate,
+        createdAt: serverTimestamp(),
+      });
+
+      const paymentRef = doc(collection(db, 'payments'));
+      await setDoc(paymentRef, {
+        id: paymentRef.id,
+        userId: user?.uid,
+        vehicleId: vehicleRef.id,
+        amount: formData.planId === '5yr' ? 1000 : 500,
+        status: 'success',
+        createdAt: serverTimestamp(),
+      });
+
+      setStep(4);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to register vehicle. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 pt-12 pb-24 px-4">
+      <div className="max-w-xl mx-auto">
+        {/* Progress Pins */}
+        <div className="flex justify-between mb-12 relative">
+           {[1, 2, 3].map((s) => (
+             <div key={s} className="flex flex-col items-center relative z-10">
+                <div className={cn(
+                  "w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-500 border-2",
+                  step >= s ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-300 border-slate-200"
+                )}>
+                  {step > s ? <CheckCircle className="w-4 h-4" /> : s}
+                </div>
+                <span className={cn(
+                  "text-xs font-bold mt-2 transition-colors",
+                  step >= s ? "text-slate-900" : "text-slate-400"
+                )}>
+                  {s === 1 ? 'Details' : s === 2 ? 'Plan' : 'Payment'}
+                </span>
+             </div>
+           ))}
+           <div className="absolute top-4 left-0 w-full h-px bg-slate-200 -z-0">
+             <div 
+               className="h-full bg-blue-600 transition-all duration-500" 
+               style={{ width: `${((Math.min(step, 3) - 1) / 2) * 100}%` }}
+             ></div>
+           </div>
+        </div>
+
+        {step === 1 && (
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
+            <div className="text-center mb-8">
+              <h1 className="text-3xl font-black text-slate-900 tracking-tight">Register Vehicle</h1>
+              <p className="text-slate-500 font-medium mt-1">Enter your vehicle details to get started.</p>
+            </div>
+            
+            <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 space-y-6">
+              <div className="space-y-2">
+                <div className="flex justify-between items-center px-1">
+                  <label className="text-sm font-bold text-slate-700">Vehicle Number</label>
+                  <label className="text-xs font-bold text-blue-600 cursor-pointer flex items-center gap-1 hover:text-blue-700 bg-blue-50 px-2 py-1 rounded-md">
+                    <Sparkles className="w-3 h-3" />
+                    Scan Number Plate
+                    <input type="file" accept="image/*" onChange={handleAiScan} className="hidden" />
+                  </label>
+                </div>
+                <div className="relative group">
+                  <Car className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-blue-600 transition-colors" />
+                  <input 
+                    name="vehicleNumber"
+                    value={formData.vehicleNumber}
+                    onChange={handleInputChange}
+                    placeholder="e.g. MH 12 AB 1234"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-12 pr-4 focus:ring-2 focus:ring-blue-500 focus:bg-white focus:border-blue-500 outline-none font-bold uppercase text-slate-900"
+                  />
+                  {isAiScanning && (
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
+                      <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-bold text-slate-700 ml-1">Owner Name</label>
+                <input 
+                  name="ownerName"
+                  value={formData.ownerName}
+                  onChange={handleInputChange}
+                  placeholder="Full Name"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-blue-500 focus:bg-white focus:border-blue-500 outline-none font-medium text-slate-900"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-slate-700 ml-1">Phone Number</label>
+                  <div className="relative group">
+                    <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input 
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleInputChange}
+                      placeholder="e.g. 9876543210"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-12 pr-4 focus:ring-2 focus:ring-blue-500 focus:bg-white focus:border-blue-500 outline-none font-medium text-slate-900"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-slate-700 ml-1">WhatsApp Number</label>
+                  <div className="relative group">
+                    <MessageCircle className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                    <input 
+                      name="whatsapp"
+                      value={formData.whatsapp}
+                      onChange={handleInputChange}
+                      placeholder="e.g. 9876543210"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-12 pr-4 focus:ring-2 focus:ring-blue-500 focus:bg-white focus:border-blue-500 outline-none font-medium text-slate-900"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <button 
+                onClick={handleNext}
+                disabled={!formData.vehicleNumber || !formData.ownerName || !formData.phone}
+                className="w-full py-4 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm mt-4"
+              >
+                Continue to Plans
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {step === 2 && (
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
+            <div className="text-center mb-10">
+              <h1 className="text-3xl font-black text-slate-900 tracking-tight">Select Plan</h1>
+              <p className="text-slate-500 font-medium mt-1">Choose the duration of your QR code validity.</p>
+            </div>
+
+            <div className="space-y-4">
+              <button 
+                onClick={() => setFormData({ ...formData, planId: '2yr' })}
+                className={cn(
+                  "w-full p-6 bg-white rounded-xl border-2 flex items-center justify-between transition-all outline-none",
+                  formData.planId === '2yr' ? "border-blue-600 bg-blue-50/50" : "border-slate-200 hover:border-blue-300"
+                )}
+              >
+                <div className="flex items-center gap-4">
+                  <div className={cn("w-6 h-6 rounded-full border-2 flex items-center justify-center", formData.planId === '2yr' ? "border-blue-600" : "border-slate-300")}>
+                    {formData.planId === '2yr' && <div className="w-3 h-3 bg-blue-600 rounded-full" />}
+                  </div>
+                  <div className="text-left">
+                    <p className="text-lg font-bold text-slate-900">Standard Plan</p>
+                    <p className="text-sm text-slate-500 font-medium">Valid for 2 Years</p>
+                  </div>
+                </div>
+                <p className="text-2xl font-black text-slate-900">₹500</p>
+              </button>
+
+              <button 
+                onClick={() => setFormData({ ...formData, planId: '5yr' })}
+                className={cn(
+                  "w-full p-6 bg-white rounded-xl border-2 flex items-center justify-between transition-all outline-none relative overflow-hidden",
+                  formData.planId === '5yr' ? "border-blue-600 bg-blue-50/50" : "border-slate-200 hover:border-blue-300"
+                )}
+              >
+                <div className="absolute top-0 right-0 bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-bl-lg">Recommended</div>
+                <div className="flex items-center gap-4">
+                   <div className={cn("w-6 h-6 rounded-full border-2 flex items-center justify-center", formData.planId === '5yr' ? "border-blue-600" : "border-slate-300")}>
+                    {formData.planId === '5yr' && <div className="w-3 h-3 bg-blue-600 rounded-full" />}
+                  </div>
+                  <div className="text-left">
+                    <p className="text-lg font-bold text-slate-900">Premium Plan</p>
+                    <p className="text-sm text-slate-500 font-medium">Valid for 5 Years</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-2xl font-black text-slate-900">₹1000</p>
+                  <p className="text-xs text-blue-600 font-bold mt-1">Best Value</p>
+                </div>
+              </button>
+            </div>
+
+            <div className="flex gap-4 mt-8">
+              <button 
+                onClick={handleBack} 
+                className="flex-1 py-4 bg-white border border-slate-200 text-slate-700 rounded-xl font-bold hover:bg-slate-50 transition-colors"
+              >
+                Back
+              </button>
+              <button 
+                onClick={handleNext} 
+                className="flex-[2] py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors"
+              >
+                Continue to Payment
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {step === 3 && (
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
+             <div className="text-center mb-10">
+              <h1 className="text-3xl font-black text-slate-900 tracking-tight">Payment</h1>
+              <p className="text-slate-500 font-medium mt-1">Complete your transaction securely.</p>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-8">
+               <div className="p-6 border-b border-slate-100 bg-slate-50">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="text-sm text-slate-500 font-medium mb-1">Vehicle</p>
+                      <p className="text-xl font-bold uppercase text-slate-900">{formData.vehicleNumber}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-slate-500 font-medium mb-1">Duration</p>
+                      <p className="text-xl font-bold text-blue-600">{formData.planId === '5yr' ? '5 Years' : '2 Years'}</p>
+                    </div>
+                  </div>
+               </div>
+
+               <div className="p-8 space-y-4 bg-white">
+                 <div className="flex justify-between text-slate-600 font-medium">
+                   <span>Registration Fee</span>
+                   <span>₹{formData.planId === '5yr' ? 1000 : 500}</span>
+                 </div>
+                 <div className="flex justify-between text-slate-600 font-medium">
+                   <span>Platform Setup</span>
+                   <span className="text-blue-600 font-bold">Free</span>
+                 </div>
+                 <div className="flex justify-between text-2xl pt-6 border-t border-slate-100 items-center">
+                   <span className="font-bold text-slate-900">Total</span>
+                   <span className="font-black text-slate-900">₹{formData.planId === '5yr' ? 1000 : 500}</span>
+                 </div>
+               </div>
+            </div>
+            
+            <button 
+              onClick={simulatePayment}
+              disabled={loading}
+              className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+            >
+              {loading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <>
+                  <CreditCard className="w-5 h-5" />
+                  Pay Now
+                </>
+              )}
+            </button>
+            
+            <button 
+              onClick={handleBack} 
+              disabled={loading} 
+              className="w-full mt-4 text-center text-slate-500 text-sm font-bold hover:text-slate-900 disabled:opacity-50"
+            >
+              Go Back
+            </button>
+          </motion.div>
+        )}
+
+        {step === 4 && (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }} 
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center"
+          >
+            <div className="bg-white p-12 rounded-2xl shadow-sm border border-slate-200 flex flex-col items-center">
+              <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mb-6 border border-green-100">
+                <CheckCircle className="w-10 h-10 text-green-600" />
+              </div>
+              <h1 className="text-3xl font-black text-slate-900 mb-2">Payment Successful!</h1>
+              <p className="text-slate-500 mb-8 max-w-sm mx-auto">Your vehicle has been registered and your safety QR code is ready.</p>
+              
+              <button 
+                onClick={() => navigate('/dashboard')}
+                className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors"
+              >
+                View Dashboard
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </div>
+    </div>
+  );
+}

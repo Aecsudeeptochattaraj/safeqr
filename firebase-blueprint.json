@@ -1,0 +1,128 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Standard app users and sales partners.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "partner", "admin"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Vehicle": {
+      "title": "Vehicle",
+      "description": "Vehicle details and owner contact info.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ownerUid": { "type": "string" },
+        "partnerUid": { "type": "string", "description": "Optional: partner who created this." },
+        "vehicleNumber": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "phone": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "emergencyContact": { "type": "string" },
+        "qrCodeUrl": { "type": "string" },
+        "planId": { "type": "string" },
+        "subscriptionExpiry": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["active", "expired", "pending"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerUid", "vehicleNumber", "ownerName", "phone", "subscriptionExpiry"]
+    },
+    "Subscription": {
+      "title": "Subscription",
+      "description": "Plan definitions.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "durationYears": { "type": "number" }
+      }
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Transaction records.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "vehicleId": { "type": "string" },
+        "amount": { "type": "number" },
+        "orderId": { "type": "string" },
+        "paymentId": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Log": {
+      "title": "Log",
+      "description": "Audit trails for scans and calls.",
+      "type": "object",
+      "properties": {
+        "vehicleId": { "type": "string" },
+        "action": { "type": "string", "enum": ["scan", "call", "whatsapp", "emergency"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "ip": { "type": "string" },
+        "metadata": { "type": "object" }
+      }
+    },
+    "Commission": {
+      "title": "Commission",
+      "description": "Partner earnings records.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "partnerUid": { "type": "string" },
+        "vehicleId": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "paid"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "QRInventory": {
+      "title": "QR Inventory",
+      "description": "Inventory of physical QR stickers.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "status": { "type": "string", "enum": ["available", "assigned"] },
+        "partnerUid": { "type": "string" },
+        "mappedVehicleId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles and roles."
+    },
+    "/vehicles/{vehicleId}": {
+      "schema": "Vehicle",
+      "description": "Vehicle registration and tracking."
+    },
+    "/payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Payment records for accounting."
+    },
+    "/logs/{logId}": {
+      "schema": "Log",
+      "description": "Activity logs for anti-abuse."
+    },
+    "/commissions/{commissionId}": {
+      "schema": "Commission",
+      "description": "Earnings for sales partners."
+    },
+    "/qr_inventory/{qrId}": {
+      "schema": "QRInventory",
+      "description": "Bulk QR stock tracking."
+    }
+  }
+}

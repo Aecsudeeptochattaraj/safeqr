@@ -1,0 +1,6 @@
+{
+  "name": "SafeQR: Vehicle Emergency QR Platform",
+  "description": "A production-ready platform for vehicle safety QR codes with owner communication, emergency reporting, and sales partner integration.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["firebase", "auth", "payments", "qr-gen"]
+}
