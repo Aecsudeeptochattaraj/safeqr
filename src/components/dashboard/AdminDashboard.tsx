@@ -1,11 +1,19 @@
 import { useEffect, useState } from 'react';
 import { db } from '../../lib/firebase';
-import { collection, query, getDocs, limit, serverTimestamp, writeBatch, doc, where, updateDoc, onSnapshot } from 'firebase/firestore';
-import { AppUser, QRInventory } from '../../types';
-import { Users, Car, Coins, ShieldCheck, QrCode, Package, Download, UserMinus, Layers, Loader2, Printer, ExternalLink } from 'lucide-react';
+import { collection, query, getDocs, limit, serverTimestamp, writeBatch, doc, where, updateDoc, onSnapshot, addDoc, deleteDoc } from 'firebase/firestore';
+import { AppUser, QRInventory, LogEntry } from '../../types';
+import { useAuth } from '../../hooks/useAuth';
+import { Users, Car, Coins, ShieldCheck, QrCode, Package, Download, UserMinus, Layers, Loader2, Printer, ExternalLink, Trash2, Repeat, AlertTriangle, CheckCircle2, TrendingUp, Activity, Clock, PieChart, Info, Search, UserX, UserCheck, ShieldOff, Eye, Map, List } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeCanvas } from 'qrcode.react';
+import JSZip from 'jszip';
+import { 
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  BarChart, Bar, Cell, Legend
+} from 'recharts';
+import { format, subDays, startOfDay, endOfDay, isWithinInterval, startOfWeek, startOfMonth } from 'date-fns';
+import { InsightsDashboard, LiveActivity, ScanTrends, AuditLogs, InventorySupplyChain, SmartInsights, FleetManagement, FinancialsManagement } from './InsightsComponents';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -23,31 +31,122 @@ const StatCard = ({ icon: Icon, label, value, color }: { icon: any, label: strin
   </div>
 );
 
+type TimeRange = 'all' | 'today' | 'week' | 'month' | 'year' | 'custom';
+
 export default function AdminDashboard() {
-  const [stats, setStats] = useState({ users: 0, vehicles: 0, revenue: 0, availableQRs: 0 });
-  const [view, setView] = useState<'overview' | 'qr_management' | 'users'>('overview');
+  const [timeRange, setTimeRange] = useState<TimeRange>('month');
+  const [stats, setStats] = useState({ 
+    users: 0, 
+    vehicles: 0, 
+    revenue: 0, 
+    availableQRs: 0,
+    totalQRs: 0,
+    assignedQRs: 0,
+    scansToday: 0,
+    scansWeek: 0,
+    scansMonth: 0,
+    scanTrend: 0 
+  });
+  const [view, setView] = useState<'overview' | 'insights' | 'supply_chain' | 'audit_logs' | 'qr_management' | 'fleet' | 'users' | 'financials'>('overview');
+  const [activityLogs, setActivityLogs] = useState<LogEntry[]>([]);
+  const [allLogs, setAllLogs] = useState<LogEntry[]>([]);
+  const [paymentsData, setPaymentsData] = useState<any[]>([]);
+  const [commissionsData, setCommissionsData] = useState<any[]>([]);
+  const [rawData, setRawData] = useState<{ 
+    inventory: QRInventory[], 
+    vehicles: any[], 
+    partners: AppUser[],
+    allUsers: AppUser[]
+  }>({ inventory: [], vehicles: [], partners: [], allUsers: [] });
 
   useEffect(() => {
+    // Basic Counts
     const unsubUsers = onSnapshot(collection(db, 'users'), snap => {
-// ... code ...
-      setStats(prev => ({ ...prev, users: snap.size }));
+      const allUsers = snap.docs.map(d => ({ ...d.data(), uid: d.id } as AppUser));
+      const partners = allUsers.filter(u => u.role === 'partner');
+      setRawData(prev => ({ ...prev, allUsers, partners }));
+      setStats(prev => ({ ...prev, users: partners.length }));
     });
     const unsubVehicles = onSnapshot(collection(db, 'vehicles'), snap => {
-      setStats(prev => ({ ...prev, vehicles: snap.size }));
+      let calcRevenue = 0;
+      const vehicles = snap.docs.map(d => {
+         const data = d.data();
+         // historical recovery for old data without payment entries
+         const amt = data.planId === '5yr' ? 1000 : (data.planId === '2yr' ? 500 : 250);
+         calcRevenue += amt;
+         return { ...data, id: d.id, _historicalRevenue: amt };
+      });
+      setRawData(prev => ({ ...prev, vehicles }));
+      setStats(prev => ({ ...prev, vehicles: snap.size, revenue: calcRevenue }));
     });
-    const unsubQRs = onSnapshot(query(collection(db, 'qr_inventory'), where('status', '==', 'available')), snap => {
-      setStats(prev => ({ ...prev, availableQRs: snap.size }));
+    
+    // QR Counts
+    const unsubQRs = onSnapshot(collection(db, 'qr_inventory'), snap => {
+      const docs = snap.docs.map(d => d.data() as QRInventory);
+      setRawData(prev => ({ ...prev, inventory: docs }));
+      setStats(prev => ({ 
+        ...prev, 
+        totalQRs: snap.size,
+        availableQRs: docs.filter(d => d.status === 'available' && !d.partnerUid).length,
+        assignedQRs: docs.filter(d => d.partnerUid).length
+      }));
     });
+
+    // Scans & Trends
+    const unsubLogs = onSnapshot(collection(db, 'logs'), snap => {
+      const logs = snap.docs.map(d => ({ ...d.data(), id: d.id } as LogEntry))
+        .sort((a: any, b: any) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+      
+      setAllLogs(logs);
+      setActivityLogs(logs.slice(0, 100)); // Limit for live feed
+
+      const now = new Date();
+      const today = startOfDay(now);
+      const week = startOfWeek(now);
+      const month = startOfMonth(now);
+
+      // Period comparison (e.g., this month vs last month)
+      const lastMonthStart = startOfMonth(subDays(month, 1));
+      const lastMonthEnd = month;
+
+      let sToday = 0, sWeek = 0, sMonth = 0, sLastMonth = 0;
+      
+      logs.forEach(l => {
+        if (l.action !== 'scan') return;
+        const ts = l.timestamp?.toDate ? l.timestamp.toDate() : new Date();
+        if (ts >= today) sToday++;
+        if (ts >= week) sWeek++;
+        if (ts >= month) sMonth++;
+        if (ts >= lastMonthStart && ts < lastMonthEnd) sLastMonth++;
+      });
+
+      const trend = sLastMonth > 0 ? ((sMonth - sLastMonth) / sLastMonth) * 100 : 0;
+
+      setStats(prev => ({ 
+        ...prev, 
+        scansToday: sToday, 
+        scansWeek: sWeek, 
+        scansMonth: sMonth,
+        scanTrend: trend
+      }));
+    });
+
     const unsubPayments = onSnapshot(collection(db, 'payments'), snap => {
-      let revenue = 0;
-      snap.forEach(d => { revenue += d.data().amount || 0; });
-      setStats(prev => ({ ...prev, revenue }));
+      const payments = snap.docs.map(d => ({ ...d.data(), id: d.id } as any));
+      setPaymentsData(payments);
     });
+    
+    const unsubCommissions = onSnapshot(collection(db, 'commissions'), snap => {
+      setCommissionsData(snap.docs.map(d => ({ ...d.data(), id: d.id } as any)));
+    });
+    
     return () => {
       unsubUsers();
       unsubVehicles();
       unsubQRs();
+      unsubLogs();
       unsubPayments();
+      unsubCommissions();
     };
   }, []);
 
@@ -62,31 +161,247 @@ export default function AdminDashboard() {
           <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase leading-none">System Intelligence</h1>
           <p className="text-slate-500 font-medium mt-2">Global oversight and inventory dispatch control.</p>
         </div>
-        <div className="flex bg-slate-100 p-1.5 rounded-xl border border-slate-200">
-          {(['overview', 'qr_management', 'users'] as const).map(v => (
-            <button 
-              key={v}
-              onClick={() => setView(v)}
-              className={cn(
-                "px-6 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all",
-                view === v ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-900'
-              )}
-            >
-              {v.replace('_', ' ')}
-            </button>
-          ))}
+        <div className="flex flex-col items-end gap-4">
+          <div className="flex bg-slate-100 p-1.5 rounded-xl border border-slate-200 overflow-x-auto max-w-full">
+            {(['overview', 'insights', 'financials', 'supply_chain', 'audit_logs', 'qr_management', 'fleet', 'users', 'danger_zone'] as const).map(v => (
+              <button 
+                key={v}
+                onClick={() => setView(v)}
+                className={cn(
+                  "px-6 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
+                  view === v ? (v === 'danger_zone' ? 'bg-red-600 text-white shadow-sm' : 'bg-white text-blue-600 shadow-sm') : (v === 'danger_zone' ? 'text-red-500 hover:text-red-700' : 'text-slate-500 hover:text-slate-900')
+                )}
+              >
+                {v.replace('_', ' ')}
+              </button>
+            ))}
+          </div>
+          
+          {view === 'insights' && (
+            <div className="flex bg-slate-900/5 p-1 rounded-lg border border-slate-200">
+               {(['today', 'week', 'month', 'year'] as const).map(tr => (
+                  <button 
+                    key={tr}
+                    onClick={() => setTimeRange(tr)}
+                    className={cn(
+                      "px-4 py-1.5 rounded-md text-[9px] font-black uppercase tracking-widest transition-all",
+                      timeRange === tr ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'
+                    )}
+                  >
+                    {tr}
+                  </button>
+               ))}
+            </div>
+          )}
         </div>
       </div>
+      
       {view === 'overview' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <StatCard icon={Users} label="Active Users" value={stats.users} color="bg-slate-900" />
-          <StatCard icon={Car} label="Fleet Size" value={stats.vehicles} color="bg-blue-600" />
-          <StatCard icon={Coins} label="Net Revenue" value={`₹${stats.revenue}`} color="bg-slate-900" />
-          <StatCard icon={Package} label="Vault Stock" value={stats.availableQRs} color="bg-blue-600" />
+        <div className="space-y-12">
+          {/* Proactive Intelligence Alerts */}
+          <div className="space-y-4">
+            {rawData.inventory.length > 100 && stats.availableQRs < 10 && (
+               <div className="bg-red-50 border border-red-100 p-6 rounded-3xl flex items-center justify-between shadow-sm animate-pulse">
+                  <div className="flex items-center gap-4">
+                     <div className="bg-red-100 p-3 rounded-xl">
+                        <AlertTriangle className="w-6 h-6 text-red-600" />
+                     </div>
+                     <div>
+                        <p className="text-sm font-black text-red-900 uppercase tracking-tight">Critical Stock Alert</p>
+                        <p className="text-xs text-red-600 font-medium">Global vault inventory is critically low ({stats.availableQRs} nodes). Immediate replenishment suggested.</p>
+                     </div>
+                  </div>
+                  <button 
+                    onClick={() => setView('qr_management')}
+                    className="px-6 py-2 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest"
+                  >
+                    Mint Now
+                  </button>
+               </div>
+            )}
+
+            {allLogs.some(l => l.action === 'suspicious') && (
+               <div className="bg-purple-50 border border-purple-100 p-6 rounded-3xl flex items-center justify-between shadow-sm">
+                  <div className="flex items-center gap-4">
+                     <div className="bg-purple-100 p-3 rounded-xl">
+                        <ShieldOff className="w-6 h-6 text-purple-600" />
+                     </div>
+                     <div>
+                        <p className="text-sm font-black text-purple-900 uppercase tracking-tight">Fraud Intelligence Active</p>
+                        <p className="text-xs text-purple-600 font-medium">Unexpected scan patterns detected outside primary service zones. Review Geo Intelligence Heatmap.</p>
+                     </div>
+                  </div>
+                  <button 
+                    onClick={() => setView('insights')}
+                    className="px-6 py-2 bg-purple-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest"
+                  >
+                    Audit Locations
+                  </button>
+               </div>
+            )}
+
+            {stats.scanTrend > 50 && (
+               <div className="bg-blue-50 border border-blue-100 p-6 rounded-3xl flex items-center justify-between shadow-sm">
+                  <div className="flex items-center gap-4">
+                     <div className="bg-blue-100 p-3 rounded-xl">
+                        <TrendingUp className="w-6 h-6 text-blue-600" />
+                     </div>
+                     <div>
+                        <p className="text-sm font-black text-blue-900 uppercase tracking-tight">Abnormal Scan Surge</p>
+                        <p className="text-xs text-blue-600 font-medium">Scan trends are up by {stats.scanTrend.toFixed(1)}%. Review high-activity regions for fraud or spikes.</p>
+                     </div>
+                  </div>
+                  <button 
+                    onClick={() => setView('insights')}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest"
+                  >
+                    View Heatmap
+                  </button>
+               </div>
+            )}
+
+            {rawData.partners.length > 0 && rawData.partners.some(p => !rawData.vehicles.some(v => v.partnerUid === p.uid)) && (
+               <div className="bg-amber-50 border border-amber-100 p-6 rounded-3xl flex items-center justify-between shadow-sm">
+                  <div className="flex items-center gap-4">
+                     <div className="bg-amber-100 p-3 rounded-xl">
+                        <Users className="w-6 h-6 text-amber-600" />
+                     </div>
+                     <div>
+                        <p className="text-sm font-black text-amber-900 uppercase tracking-tight">Inactive Partner Detected</p>
+                        <p className="text-xs text-amber-600 font-medium">Some partners have allocated QRs but zero mapped vehicles. Suggest redistribution.</p>
+                     </div>
+                  </div>
+                  <button 
+                    onClick={() => setView('users')}
+                    className="px-6 py-2 bg-amber-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest"
+                  >
+                    Audit Partners
+                  </button>
+               </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <StatCard icon={Users} label="Active Users" value={stats.users} color="bg-slate-900" />
+            <StatCard icon={Car} label="Fleet Size" value={stats.vehicles} color="bg-blue-600" />
+            <StatCard icon={Coins} label="Net Revenue" value={`₹${stats.revenue}`} color="bg-slate-900" />
+            <StatCard icon={Package} label="Vault Stock" value={stats.availableQRs} color="bg-blue-600" />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            <div className="lg:col-span-3 space-y-8">
+               <SmartInsights stats={stats} rawData={rawData} logs={allLogs} />
+            </div>
+            <div>
+               <LiveActivity feed={activityLogs} />
+            </div>
+          </div>
         </div>
       )}
+
+      {view === 'insights' && <InsightsDashboard stats={stats} rawData={rawData} logs={allLogs} timeRange={timeRange} />}
+      {view === 'financials' && <FinancialsManagement payments={paymentsData} commissions={commissionsData} users={rawData.allUsers} cn={cn} vehicles={rawData.vehicles} />}
+      {view === 'supply_chain' && <InventorySupplyChain rawData={rawData} logs={allLogs} />}
+      {view === 'audit_logs' && <AuditLogs logs={allLogs} partners={rawData.partners} />}
       {view === 'qr_management' && <QRManagement />}
+      {view === 'fleet' && <FleetManagement vehicles={rawData.vehicles} payments={paymentsData} users={rawData.allUsers} cn={cn} />}
       {view === 'users' && <UserManagement />}
+      {view === 'danger_zone' && <DangerZone />}
+    </div>
+  );
+}
+
+function DangerZone() {
+  const { user } = useAuth();
+  const [wiping, setWiping] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+
+  const executeHardReset = async () => {
+    if (confirmText !== 'CONFIRM') return;
+
+    setWiping(true);
+    setStatus('Initializing global wipe...');
+
+    try {
+      const wipeCollection = async (colName: string) => {
+        setStatus(`Wiping ${colName}...`);
+        const snap = await getDocs(collection(db, colName));
+        for (const d of snap.docs) {
+          // Protect the current admin user account to prevent lockout
+          if (colName === 'users' && user && d.id === user.uid) continue;
+          await deleteDoc(doc(db, colName, d.id));
+        }
+      };
+
+      await wipeCollection('vehicles');
+      await wipeCollection('qr_inventory');
+      await wipeCollection('logs');
+      await wipeCollection('payments');
+      await wipeCollection('commissions');
+      await wipeCollection('users');
+
+      setStatus('System factory reset successfully.');
+      setShowConfirm(false);
+      setConfirmText('');
+      setTimeout(() => setStatus(null), 3000);
+    } catch (err: any) {
+      console.error('Wipe Error:', err);
+      setStatus(`Error: ${err.message}`);
+    } finally {
+      setWiping(false);
+    }
+  };
+
+  return (
+    <div className="bg-red-50 border border-red-100 p-8 rounded-3xl shadow-sm">
+      <h3 className="text-xl font-black text-red-900 uppercase tracking-tight mb-2">System Danger Zone</h3>
+      <p className="text-sm font-medium text-red-700 mb-6 max-w-xl">
+        Execute a full system factory reset. This will permanently obliterate all vehicles, nodes, logs, payments, and non-admin participants from the platform. Use only for testing initialization.
+      </p>
+      
+      {!showConfirm ? (
+        <button 
+          onClick={() => setShowConfirm(true)}
+          className="px-8 py-4 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-700 active:scale-95 transition-all shadow-xl shadow-red-200 flex items-center gap-3"
+        >
+          <Trash2 className="w-5 h-5" />
+          Request Hard Reset
+        </button>
+      ) : (
+        <div className="bg-white p-6 rounded-2xl border border-red-200 shadow-xl max-w-md">
+          <p className="text-sm font-bold text-red-600 mb-4 uppercase tracking-widest">Type 'CONFIRM' to proceed</p>
+          <input 
+            type="text" 
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            className="w-full border-2 border-red-100 rounded-xl px-4 py-3 mb-4 outline-none focus:border-red-500 font-black text-red-900" 
+            placeholder="CONFIRM"
+          />
+          <div className="flex gap-4">
+            <button 
+              onClick={() => { setShowConfirm(false); setConfirmText(''); }}
+              className="flex-1 py-3 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-xl font-black uppercase text-xs transition-colors"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={executeHardReset}
+              disabled={confirmText !== 'CONFIRM' || wiping}
+              className="flex-1 py-3 bg-red-600 text-white hover:bg-red-700 rounded-xl font-black uppercase text-xs disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
+            >
+              {wiping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              {wiping ? 'Wiping...' : 'Destroy Data'}
+            </button>
+          </div>
+          {status && (
+            <p className="mt-4 text-[10px] font-black uppercase tracking-widest text-red-500 animate-pulse text-center">
+              {status}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -124,22 +439,35 @@ function QRManagement() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.length === items.length) setSelectedIds([]);
-    else setSelectedIds(items.map(i => i.id));
+    const printableItems = items.filter(i => i.partnerUid);
+    if (selectedIds.length === printableItems.length && printableItems.length > 0) setSelectedIds([]);
+    else setSelectedIds(printableItems.map(i => i.id));
   };
 
   const generateBulkQRs = async () => {
     if (generateAmount <= 0) return;
     setIsGenerating(true);
+    const batchId = `LOT-${format(new Date(), 'yyyyMMdd')}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
     try {
       const batch = writeBatch(db);
       for (let i = 0; i < generateAmount; i++) {
         const docId = Math.random().toString(36).substring(2, 10).toUpperCase();
-        batch.set(doc(db, 'qr_inventory', docId), {
+        const docRef = doc(db, 'qr_inventory', docId);
+        batch.set(docRef, {
           id: docId,
           status: 'available',
+          batchId: batchId,
           createdAt: serverTimestamp(),
           partnerUid: null
+        });
+
+        // Log creation
+        const logRef = doc(collection(db, 'logs'));
+        batch.set(logRef, {
+          action: 'creation',
+          adminUid: 'SUPER-ADMIN',
+          timestamp: serverTimestamp(),
+          metadata: { qrId: docId, batchId: batchId }
         });
       }
       await batch.commit();
@@ -154,10 +482,26 @@ function QRManagement() {
     try {
       const q = query(collection(db, 'qr_inventory'), where('status', '==', 'available'), where('partnerUid', '==', null), limit(allocateAmount));
       const snap = await getDocs(q);
-      if (snap.empty) { alert("Vault empty."); return; }
+      if (snap.empty) { 
+        console.warn("Vault empty - no available nodes to dispatch.");
+        return; 
+      }
       const batch = writeBatch(db);
       snap.docs.forEach(d => {
-        batch.update(d.ref, { partnerUid: selectedPartner });
+        batch.update(d.ref, { 
+          partnerUid: selectedPartner,
+          assignedAt: serverTimestamp() 
+        });
+
+        // Log allocation
+        const logRef = doc(collection(db, 'logs'));
+        batch.set(logRef, {
+          action: 'transfer',
+          adminUid: 'SUPER-ADMIN',
+          targetUid: selectedPartner,
+          timestamp: serverTimestamp(),
+          metadata: { qrId: d.id, target: selectedPartner, type: 'bulk' }
+        });
       });
       await batch.commit();
     } finally {
@@ -169,22 +513,105 @@ function QRManagement() {
     try {
       await updateDoc(doc(db, 'qr_inventory', id), { 
         partnerUid: null,
-        status: 'available' 
+        status: 'available',
+        vehicleId: null,
+        ownerUid: null
+      });
+      // Log reclaiming
+      await addDoc(collection(db, 'logs'), {
+        action: 'transfer',
+        adminUid: 'SUPER-ADMIN',
+        timestamp: serverTimestamp(),
+        metadata: { qrId: id, target: 'vault', type: 'reclaim' }
       });
     } catch (err) {
       console.error("Unassign error:", err);
     }
   };
 
-  const executePrint = () => {
-    if (selectedIds.length === 0) {
-      alert("Select nodes to print first.");
+  const unlinkQR = async (id: string) => {
+    try {
+      await updateDoc(doc(db, 'qr_inventory', id), { 
+        status: 'available',
+        vehicleId: null,
+        ownerUid: null
+      });
+      // Log unlinking
+      await addDoc(collection(db, 'logs'), {
+        action: 'unlink_qr',
+        adminUid: 'SUPER-ADMIN',
+        timestamp: serverTimestamp(),
+        metadata: { qrId: id }
+      });
+    } catch (err) {}
+  };
+
+  const deleteQR = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'qr_inventory', id));
+      setSelectedIds(prev => prev.filter(i => i !== id));
+      
+      // Log deletion
+      await addDoc(collection(db, 'logs'), {
+        action: 'deletion',
+        adminUid: 'SUPER-ADMIN',
+        timestamp: serverTimestamp(),
+        vehicleId: 'SYSTEM',
+        metadata: { qrId: id }
+      });
+    } catch (err) {
+      console.error("Delete error:", err);
+    }
+  };
+
+  const transferQR = async (id: string, newPartnerUid: string) => {
+    try {
+      await updateDoc(doc(db, 'qr_inventory', id), { 
+        partnerUid: newPartnerUid === 'vault' ? null : newPartnerUid,
+        assignedAt: newPartnerUid === 'vault' ? null : serverTimestamp()
+      });
+      
+      // Log transfer
+      await addDoc(collection(db, 'logs'), {
+        action: 'transfer',
+        adminUid: 'SUPER-ADMIN',
+        timestamp: serverTimestamp(),
+        metadata: { qrId: id, target: newPartnerUid }
+      });
+    } catch (err) {
+      console.error("Transfer error:", err);
+    }
+  };
+
+  const executePrint = async () => {
+    // Only allow printing for nodes that are assigned to a partner
+    const validIds = selectedIds.filter(id => {
+      const item = items.find(i => i.id === id);
+      return item && item.partnerUid;
+    });
+
+    if (validIds.length === 0) {
+      console.warn("Print skipped: Only assigned or mapped nodes can be downloaded/printed.");
       return;
     }
+
+    // Log print/download action
+    try {
+      await addDoc(collection(db, 'logs'), {
+        action: 'download',
+        adminUid: 'SUPER-ADMIN',
+        status: 'success',
+        timestamp: serverTimestamp(),
+        metadata: { qrIds: validIds, type: 'print_view', count: validIds.length }
+      });
+    } catch (err) {
+      console.error("Audit log failed:", err);
+    }
+
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
     const brand = "SAFE-TAG";
-    const cardsHtml = selectedIds.map(id => {
+    const cardsHtml = validIds.map(id => {
       const canvas = document.getElementById(`qr-src-${id}`)?.querySelector('canvas');
       const dataUrl = canvas?.toDataURL("image/png");
       return `
@@ -208,34 +635,115 @@ function QRManagement() {
     printWindow.document.close();
   };
 
+  const downloadSelectedQRs = async () => {
+    const validIds = selectedIds.filter(id => {
+      const item = items.find(i => i.id === id);
+      return item && item.partnerUid;
+    });
+
+    if (validIds.length === 0) return;
+    setIsZipping(true);
+
+    try {
+      const zip = new JSZip();
+      
+      // Log download
+      await addDoc(collection(db, 'logs'), {
+        action: 'download',
+        adminUid: 'SUPER-ADMIN',
+        timestamp: serverTimestamp(),
+        metadata: { qrIds: validIds, type: 'zip_package' }
+      });
+
+      const folder = zip.folder("SAFE_TAG_STICKERS");
+      const brand = "SAFE-TAG";
+
+      for (const id of validIds) {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) continue;
+
+        const size = 600;
+        const padding = 60;
+        const header = 120;
+        const footer = 100;
+
+        canvas.width = size + (padding * 2);
+        canvas.height = size + header + footer + (padding * 2);
+
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.fillStyle = '#1E293B';
+        ctx.font = 'black 60px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(brand, canvas.width / 2, padding + 70);
+
+        ctx.fillStyle = '#64748B';
+        ctx.font = 'bold 24px sans-serif';
+        ctx.fillText("SMART VEHICLE TAG", canvas.width / 2, padding + 110);
+
+        const qrSrc = document.getElementById(`qr-src-${id}`)?.querySelector('canvas');
+        if (qrSrc) {
+          ctx.drawImage(qrSrc, padding, padding + header, size, size);
+        }
+
+        ctx.fillStyle = '#3B82F6';
+        ctx.font = '900 45px monospace';
+        ctx.fillText(id, canvas.width / 2, canvas.height - padding - 20);
+
+        const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+        if (blob && folder) {
+          folder.file(`${brand}_${id}.png`, blob);
+        }
+      }
+
+      const content = await zip.generateAsync({ type: "blob" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(content);
+      link.download = `SAFE_TAG_NODES_PNG_${Date.now()}.zip`;
+      link.click();
+    } catch (err) {
+      console.error("Download error:", err);
+    } finally {
+      setIsZipping(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
-           <div className="flex items-center gap-3 mb-4">
-              <QrCode className="w-5 h-5 text-blue-600" />
-              <h3 className="text-xl font-black text-slate-900 uppercase">Initialize Batch</h3>
-           </div>
-           <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-8">Mint IDs into the ledger.</p>
-           <div className="flex gap-4">
-              <input type="number" value={generateAmount} onChange={(e) => setGenerateAmount(Number(e.target.value))} className="border-2 border-slate-100 rounded-xl px-4 py-3 font-black w-32 outline-none" />
-              <button onClick={generateBulkQRs} disabled={isGenerating} className="bg-blue-600 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase flex-1 transition-all">Mint Nodes</button>
+        <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+           <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-full translate-x-1/2 -translate-y-1/2 -z-0"></div>
+           <div className="relative z-10">
+              <div className="flex items-center gap-3 mb-4">
+                <QrCode className="w-5 h-5 text-blue-600" />
+                <h3 className="text-xl font-black text-slate-900 uppercase">Initialize Batch</h3>
+              </div>
+              <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mb-8">Mint IDs into the global ledger vault.</p>
+              <div className="flex gap-4">
+                <input type="number" value={generateAmount} onChange={(e) => setGenerateAmount(Number(e.target.value))} className="border-2 border-slate-100 rounded-xl px-4 py-3 font-black w-32 outline-none focus:border-blue-500 transition-all" />
+                <button onClick={generateBulkQRs} disabled={isGenerating} className="bg-blue-600 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase flex-1 shadow-lg shadow-blue-100 hover:bg-blue-700 transition-all disabled:opacity-50">Mint Nodes</button>
+              </div>
            </div>
         </div>
         <div className="bg-slate-900 p-8 rounded-2xl text-white shadow-2xl relative overflow-hidden">
-           <div className="flex items-center gap-3 mb-4">
-              <Layers className="w-5 h-5 text-blue-400" />
-              <h3 className="text-xl font-black text-white uppercase">Dispatch Inventory</h3>
-           </div>
-           <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-12">Transfer nodes to partners.</p>
-           <div className="space-y-4">
-              <select value={selectedPartner} onChange={(e) => setSelectedPartner(e.target.value)} className="w-full bg-slate-800 rounded-xl px-4 py-4 text-[10px] font-black text-white outline-none">
-                 <option value="">-- Target Showroom --</option>
-                 {partners.map(p => <option key={p.uid} value={p.uid}>{p.email}</option>)}
-              </select>
-              <div className="flex gap-4">
-                 <input type="number" value={allocateAmount} onChange={(e) => setAllocateAmount(Number(e.target.value))} className="bg-slate-800 rounded-xl px-4 py-3 text-white text-center w-32 outline-none" />
-                 <button onClick={allocateBatch} disabled={!selectedPartner || allocating} className="bg-white text-slate-900 px-6 py-3 rounded-xl text-[10px] font-black uppercase flex-1 uppercase">Dispatch</button>
+           <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/10 blur-3xl rounded-full"></div>
+           <div className="relative z-10 text-center md:text-left">
+              <div className="flex items-center justify-center md:justify-start gap-3 mb-4">
+                <Layers className="w-5 h-5 text-blue-400" />
+                <h3 className="text-xl font-black text-white uppercase tracking-tight">Mass Dispatch</h3>
+              </div>
+              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mb-8">Allocate master vault stock to partners.</p>
+              <div className="space-y-4">
+                <select value={selectedPartner} onChange={(e) => setSelectedPartner(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-4 text-[10px] font-black text-white outline-none focus:border-blue-500 transition-all cursor-pointer">
+                   <option value="">-- Select Destination Partner --</option>
+                   {partners.map(p => <option key={p.uid} value={p.uid}>{p.email}</option>)}
+                </select>
+                <div className="flex gap-4">
+                   <input type="number" value={allocateAmount} onChange={(e) => setAllocateAmount(Number(e.target.value))} className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3 text-white text-center w-32 outline-none font-bold" />
+                   <button onClick={allocateBatch} disabled={!selectedPartner || allocating} className="bg-white text-slate-900 px-6 py-3 rounded-xl text-[10px] font-black uppercase flex-1 shadow-xl hover:bg-slate-200 transition-all disabled:opacity-50">Dispatch Nodes</button>
+                </div>
               </div>
            </div>
         </div>
@@ -244,12 +752,32 @@ function QRManagement() {
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
         <div className="px-8 py-6 border-b border-slate-100 bg-slate-50 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-6">
-                <input type="checkbox" checked={selectedIds.length === items.length && items.length > 0} onChange={toggleSelectAll} className="w-5 h-5 border-slate-300 text-blue-600 cursor-pointer" />
-                <h3 className="text-sm font-black text-slate-900 uppercase">Ledger Room</h3>
+                <input 
+                  type="checkbox" 
+                  checked={selectedIds.length === items.filter(i => i.partnerUid).length && items.filter(i => i.partnerUid).length > 0} 
+                  onChange={toggleSelectAll} 
+                  className="w-5 h-5 border-slate-300 text-blue-600 cursor-pointer rounded transition-all" 
+                />
+                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Regional Ledger Inventory</h3>
             </div>
-            <button onClick={executePrint} disabled={selectedIds.length === 0} className="px-8 py-4 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase shadow-xl shadow-blue-100 hover:scale-105 active:scale-95 transition-all">
-               <Printer className="w-4 h-4 mr-2 inline" /> Print Selected ({selectedIds.length})
-            </button>
+            <div className="flex gap-2">
+                <button 
+                  onClick={downloadSelectedQRs} 
+                  disabled={selectedIds.length === 0 || isZipping} 
+                  className="px-8 py-4 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase shadow-xl shadow-slate-100 hover:bg-slate-800 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isZipping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  Download PNGs ({selectedIds.filter(id => items.find(i => i.id === id)?.partnerUid).length})
+                </button>
+                <button 
+                  onClick={executePrint} 
+                  disabled={selectedIds.length === 0} 
+                  className="px-8 py-4 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase shadow-xl shadow-blue-100 hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2"
+                >
+                  <Printer className="w-4 h-4" /> 
+                  Print Layout
+                </button>
+            </div>
         </div>
         <div className="hidden">
            {items.map(item => (
@@ -259,51 +787,131 @@ function QRManagement() {
            ))}
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-             <thead className="bg-white text-slate-400 font-black uppercase text-[9px] tracking-widest border-b border-slate-100">
+          <table className="w-full text-left text-sm border-collapse">
+             <thead className="bg-slate-50/50 text-slate-400 font-black uppercase text-[9px] tracking-widest border-b border-slate-100">
                <tr>
-                 <th className="px-8 py-5 w-10 text-center">Select</th>
-                 <th className="px-8 py-5">Node Identity</th>
-                 <th className="px-8 py-5">State</th>
-                 <th className="px-8 py-5">Showroom</th>
-                 <th className="px-8 py-5 text-right">Actions</th>
+                 <th className="px-8 py-5 w-10 text-center"></th>
+                 <th className="px-8 py-5">Node Reference</th>
+                 <th className="px-8 py-5">Asset Mapping</th>
+                 <th className="px-8 py-5">Security State</th>
+                 <th className="px-8 py-5">Distribution Channel</th>
+                 <th className="px-8 py-5">Printable</th>
+                 <th className="px-8 py-5 text-right font-black">Controls</th>
                </tr>
              </thead>
              <tbody className="divide-y divide-slate-100">
                {items.map(item => (
-                 <tr key={item.id} className={cn("transition-colors group", selectedIds.includes(item.id) ? "bg-blue-50/50" : "hover:bg-slate-50/50")}>
+                 <tr key={item.id} className={cn("transition-all duration-200 group", selectedIds.includes(item.id) ? "bg-blue-50/50" : "hover:bg-slate-50/50")}>
                    <td className="px-8 py-6 text-center">
-                      <input type="checkbox" checked={selectedIds.includes(item.id)} onChange={() => toggleSelect(item.id)} className="w-5 h-5 border-slate-300 text-blue-600 cursor-pointer" />
+                      {item.partnerUid && (
+                        <input type="checkbox" checked={selectedIds.includes(item.id)} onChange={() => toggleSelect(item.id)} className="w-5 h-5 border-slate-300 text-blue-600 cursor-pointer rounded" />
+                      )}
                    </td>
                    <td className="px-8 py-6">
                       <div className="flex items-center gap-4">
-                         <div className="w-10 h-10 border border-slate-200 rounded flex items-center justify-center p-1 bg-white">
+                         <div className="w-10 h-10 border border-slate-200 rounded-lg flex items-center justify-center p-1 bg-white shadow-sm group-hover:border-blue-200 transition-colors">
                             <QRCodeCanvas value={`${window.location.origin}/s/${item.id}`} size={32} />
                          </div>
-                         <p className="text-lg font-black font-mono text-slate-900">{item.id}</p>
+                         <div>
+                            <p className="text-sm font-black font-mono text-slate-900 tracking-wider uppercase">{item.id}</p>
+                            <p className="text-[8px] text-slate-400 font-bold uppercase mt-0.5">Physical Tag ID</p>
+                         </div>
                       </div>
                    </td>
                    <td className="px-8 py-6">
-                     <span className={cn("px-3 py-1 rounded-full text-[9px] font-black uppercase", item.status === 'available' ? "bg-green-50 text-green-700" : "bg-slate-100 text-slate-700")}>{item.status}</span>
+                      {item.vehicleId ? (
+                        <div className="flex flex-col">
+                           <span className="text-[10px] font-black text-slate-900 uppercase">{item.vehicleId}</span>
+                           <div className="flex items-center gap-1 mt-1">
+                              <button 
+                                onClick={() => unlinkQR(item.id)}
+                                className="text-[8px] font-black uppercase text-red-500 hover:underline"
+                              >
+                                Unlink
+                              </button>
+                           </div>
+                        </div>
+                      ) : (
+                        <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest italic">Unmapped</span>
+                      )}
                    </td>
                    <td className="px-8 py-6">
-                      <span className="font-bold text-slate-600 text-[10px] uppercase">{item.partnerUid ? partners.find(p => p.uid === item.partnerUid)?.email : 'Vault'}</span>
+                     <span className={cn("px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all", 
+                        item.status === 'available' ? "bg-green-50 text-green-700 border-green-100" : "bg-blue-50 text-blue-700 border-blue-100"
+                      )}>
+                        {item.status}
+                      </span>
+                   </td>
+                   <td className="px-8 py-6">
+                      <div className="flex flex-col">
+                         <span className={cn("font-black text-[10px] uppercase", item.partnerUid ? "text-slate-900" : "text-slate-300")}>
+                           {item.partnerUid ? partners.find(p => p.uid === item.partnerUid)?.email : 'MASTER VAULT'}
+                         </span>
+                         <div className="mt-2 group-hover:opacity-100 lg:opacity-0 transition-opacity">
+                              <select 
+                                onChange={(e) => transferQR(item.id, e.target.value)}
+                                className={cn("text-[9px] font-black uppercase bg-transparent border-none outline-none cursor-pointer hover:underline p-0", item.partnerUid ? "text-blue-600" : "text-slate-400")}
+                              >
+                                <option value="">{item.partnerUid ? 'Transfer Node...' : 'Assign from Vault...'}</option>
+                                {item.partnerUid && <option value="vault">Move to Vault</option>}
+                                {partners.filter(p => p.uid !== item.partnerUid).map(p => (
+                                  <option key={p.uid} value={p.uid}>Assign to {p.email.split('@')[0]}</option>
+                                ))}
+                              </select>
+                         </div>
+                      </div>
+                   </td>
+                   <td className="px-8 py-6">
+                      {item.partnerUid ? (
+                        <div className="flex items-center gap-2 text-green-600 font-black text-[9px] uppercase tracking-tighter">
+                          <CheckCircle2 className="w-3 h-3" /> Yes
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-slate-300 font-black text-[9px] uppercase tracking-tighter">
+                          <AlertTriangle className="w-3 h-3" /> No
+                        </div>
+                      )}
                    </td>
                    <td className="px-8 py-6 text-right">
-                      <div className="flex items-center justify-end gap-3">
+                      <div className="flex items-center justify-end gap-2">
                         {item.partnerUid && item.status === 'available' && (
-                          <button onClick={() => unassignQR(item.id)} className="p-2.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-600 hover:text-white transition-all"><UserMinus className="w-4 h-4" /></button>
+                          <button 
+                            onClick={() => unassignQR(item.id)} 
+                            title="Reclaim to System Vault"
+                            className="p-2.5 bg-slate-50 text-slate-400 rounded-lg hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center gap-2"
+                          >
+                            <Repeat className="w-4 h-4" />
+                          </button>
                         )}
+                        
                         {item.status === 'assigned' && (
-                           <a href={`/s/${item.id}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-[9px] font-black uppercase hover:scale-105 transition-all"><ExternalLink className="w-3 h-3" /> View Profile</a>
+                           <a href={`/s/${item.id}`} target="_blank" rel="noopener noreferrer" className="p-2.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all shadow-sm">
+                              <ExternalLink className="w-4 h-4" />
+                           </a>
                         )}
-                        {!item.partnerUid && <span className="text-[9px] font-black text-slate-300 uppercase">Master</span>}
+
+                        {/* Delete logic: only if in vault (unassigned) */}
+                        {!item.partnerUid && item.status === 'available' && (
+                           <button 
+                             onClick={() => deleteQR(item.id)}
+                             className="p-2.5 bg-red-50 text-red-500 rounded-lg hover:bg-red-600 hover:text-white transition-all shadow-sm"
+                             title="Delete Node"
+                           >
+                              <Trash2 className="w-4 h-4" />
+                           </button>
+                        )}
                       </div>
                    </td>
                  </tr>
                ))}
              </tbody>
           </table>
+          {items.length === 0 && (
+            <div className="py-20 text-center border-t border-slate-50 bg-slate-50/20">
+               <Package className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+               <p className="text-sm font-black text-slate-300 uppercase tracking-widest">Global Vault is Empty</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -313,42 +921,183 @@ function QRManagement() {
 function UserManagement() {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [selectedUser, setSelectedUser] = useState<AppUser | null>(null);
+
   useEffect(() => {
-    const q = query(collection(db, 'users'), limit(50));
-// ... code ...
+    const q = query(collection(db, 'users'), limit(500));
     const unsub = onSnapshot(q, snap => {
       setUsers(snap.docs.map(d => ({ ...d.data(), uid: d.id } as AppUser)).sort((a: any, b: any) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
+      setLoading(false);
     });
     return () => unsub();
   }, []);
+
   const updateRole = async (uid: string, newRole: string) => {
-    try { await updateDoc(doc(db, 'users', uid), { role: newRole }); } catch (err) {}
+    try { 
+      await updateDoc(doc(db, 'users', uid), { role: newRole });
+      await addDoc(collection(db, 'logs'), {
+        action: 'edit_role',
+        adminUid: 'current-admin',
+        targetUid: uid,
+        timestamp: serverTimestamp(),
+        metadata: { newRole }
+      });
+    } catch (err: any) {
+      alert(`Error updating role: ${err.message}`);
+    }
   };
-  const filtered = users.filter(u => u.email.toLowerCase().includes(searchTerm.toLowerCase()));
+
+  const toggleStatus = async (uid: string, currentStatus: string) => {
+    const newStatus = currentStatus === 'blocked' ? 'active' : 'blocked';
+    try {
+      await updateDoc(doc(db, 'users', uid), { accountStatus: newStatus });
+      await addDoc(collection(db, 'logs'), {
+        action: newStatus === 'blocked' ? 'block_user' : 'unblock_user',
+        adminUid: 'current-admin',
+        targetUid: uid,
+        timestamp: serverTimestamp()
+      });
+    } catch (err: any) {
+      alert(`Error toggling status: ${err.message}`);
+    }
+  };
+
+  const softDeleteUser = async (uid: string) => {
+    if (!confirm('Are you sure you want to delete this user? This will soft-delete their profile.')) return;
+    try {
+      await updateDoc(doc(db, 'users', uid), { isDeleted: true });
+      await addDoc(collection(db, 'logs'), {
+        action: 'delete_user',
+        adminUid: 'current-admin',
+        targetUid: uid,
+        timestamp: serverTimestamp()
+      });
+    } catch (err: any) {
+      alert(`Error deleting user: ${err.message}`);
+    }
+  };
+
+  const filtered = users.filter(u => {
+    if (u.isDeleted === true) return false;
+    const search = searchTerm.toLowerCase();
+    return (
+      u.email.toLowerCase().includes(search) || 
+      u.displayName?.toLowerCase().includes(search) ||
+      u.phoneNumber?.includes(searchTerm)
+    );
+  });
+
+  if (loading) return (
+    <div className="bg-white rounded-3xl border border-slate-200 p-20 flex flex-col items-center justify-center gap-6">
+      <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
+      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Syncing Identity Vault...</p>
+    </div>
+  );
+
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
-       <div className="px-8 py-6 border-b border-slate-100 bg-slate-50 flex flex-col sm:flex-row justify-between items-center gap-6">
-          <h3 className="text-sm font-black text-slate-900 uppercase">Identity Management</h3>
-          <input type="text" placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full sm:w-80 bg-white border border-slate-200 rounded-xl px-4 py-3 text-[10px] font-black uppercase outline-none focus:border-blue-500" />
-       </div>
-       <table className="w-full text-left text-sm">
-          <thead className="bg-white text-slate-400 font-black uppercase text-[9px] tracking-widest border-b border-slate-100">
-             <tr><th className="px-8 py-5">Email</th><th className="px-8 py-5">Name</th><th className="px-8 py-5 text-right">Role</th></tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-             {filtered.map(u => (
-               <tr key={u.uid} className="hover:bg-slate-50/50">
-                 <td className="px-8 py-6 font-black text-slate-900">{u.email}</td>
-                 <td className="px-8 py-6 text-slate-500 font-bold uppercase text-[10px]">{u.displayName || 'Entity'}</td>
-                 <td className="px-8 py-6 text-right">
-                    <select value={u.role} onChange={(e) => updateRole(u.uid, e.target.value)} className={cn("bg-white border rounded px-3 py-1.5 text-[9px] font-black uppercase", u.role === 'admin' ? "border-slate-900 text-slate-900" : "border-blue-600 text-blue-600")}>
-                       <option value="user">User</option><option value="partner">Partner</option><option value="admin">Admin</option>
-                    </select>
-                 </td>
+    <div className="space-y-8">
+      <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xl">
+        <div className="px-8 py-8 border-b border-slate-100 bg-slate-50/50 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+           <div>
+              <h3 className="text-lg font-black text-slate-900 uppercase tracking-tighter">Identity Management</h3>
+              <p className="text-xs text-slate-500 font-medium italic">Full master data control for all platform participants.</p>
+           </div>
+           <div className="relative w-full lg:w-96">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input 
+                type="text" 
+                placeholder="SEARCH BY EMAIL, NAME, PHONE..." 
+                value={searchTerm} 
+                onChange={(e) => setSearchTerm(e.target.value)} 
+                className="w-full pl-12 pr-6 py-4 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase outline-none focus:ring-4 focus:ring-blue-100 transition-all placeholder:text-slate-300" 
+              />
+           </div>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead className="bg-slate-50/50 text-slate-400 font-black uppercase text-[9px] tracking-widest border-b border-slate-100">
+               <tr>
+                 <th className="px-8 py-5">Profile</th>
+                 <th className="px-8 py-5">Role</th>
+                 <th className="px-8 py-5">Status</th>
+                 <th className="px-8 py-5">Contact</th>
+                 <th className="px-8 py-5 text-right">Actions</th>
                </tr>
-             ))}
-          </tbody>
-       </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+               {filtered.map(u => (
+                 <tr key={u.uid} className="hover:bg-slate-50/30 transition-colors group">
+                   <td className="px-8 py-6">
+                     <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-slate-900 rounded-full flex items-center justify-center text-xs font-black text-white italic">
+                          {u.displayName?.charAt(0) || 'U'}
+                        </div>
+                        <div>
+                          <p className="text-sm font-black text-slate-900 leading-none">{u.displayName || 'Anonymous User'}</p>
+                          <p className="text-[10px] text-slate-400 mt-1 font-bold">{u.email}</p>
+                        </div>
+                     </div>
+                   </td>
+                   <td className="px-8 py-6">
+                      <select 
+                        value={u.role} 
+                        onChange={(e) => updateRole(u.uid, e.target.value)} 
+                        className={cn(
+                          "bg-white border rounded-lg px-3 py-1.5 text-[9px] font-black uppercase tracking-widest outline-none", 
+                          u.role === 'admin' ? "border-slate-900 text-slate-900" : "border-blue-200 text-blue-600"
+                        )}
+                      >
+                         <option value="user">Standard User</option>
+                         <option value="partner">Sales Partner</option>
+                         <option value="admin">System Admin</option>
+                         <option value="super-admin">Super Admin</option>
+                         <option value="viewer">Dashboard Viewer</option>
+                      </select>
+                   </td>
+                   <td className="px-8 py-6">
+                      <span className={cn(
+                        "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest",
+                        u.accountStatus === 'blocked' ? "bg-red-100 text-red-600" : "bg-green-100 text-green-600"
+                      )}>
+                        {u.accountStatus || 'active'}
+                      </span>
+                   </td>
+                   <td className="px-8 py-6">
+                      <p className="text-[10px] font-bold text-slate-600">{u.phoneNumber || 'NO PHONE'}</p>
+                   </td>
+                   <td className="px-8 py-6 text-right">
+                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button 
+                          onClick={() => toggleStatus(u.uid, u.accountStatus || 'active')}
+                          title={u.accountStatus === 'blocked' ? "Unblock User" : "Block User"}
+                          className="p-2 hover:bg-slate-100 rounded-lg text-slate-600 hover:text-slate-900 transition-colors"
+                        >
+                          {u.accountStatus === 'blocked' ? <UserCheck className="w-4 h-4" /> : <UserX className="w-4 h-4" />}
+                        </button>
+                        <button 
+                          onClick={() => softDeleteUser(u.uid)}
+                          title="Soft Delete"
+                          className="p-2 hover:bg-red-50 rounded-lg text-slate-400 hover:text-red-600 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                   </td>
+                 </tr>
+               ))}
+               {filtered.length === 0 && (
+                 <tr>
+                   <td colSpan={5} className="px-8 py-20 text-center">
+                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">No participants segments found matching your query.</p>
+                   </td>
+                 </tr>
+               )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

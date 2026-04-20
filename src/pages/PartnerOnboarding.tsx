@@ -35,6 +35,9 @@ export default function PartnerOnboarding() {
     phone: '',
     whatsapp: '',
     vehicleNumber: '',
+    vehicleType: 'car' as 'car' | 'bike' | 'scooter',
+    vehicleBrand: '',
+    vehicleColor: '',
     selectedQrId: '',
     plan: '2yr' as '1yr' | '2yr' | '5yr'
   });
@@ -61,7 +64,6 @@ export default function PartnerOnboarding() {
         } as QRInventory)));
       }, (err) => {
         console.error('Inventory snapshot error:', err);
-        // Don't crash the whole UI if just the inventory fails
       });
 
       return () => unsub();
@@ -104,16 +106,25 @@ export default function PartnerOnboarding() {
         model: "gemini-3-flash-preview",
         contents: {
           parts: [
-            { text: "Extract the vehicle license plate number from this image. Only return the plate number in caps. If not visible, say 'NOT_FOUND'." },
+            { text: `Extract technical vehicle details from this image. 
+              Return a JSON object with keys: plate (the number), brand (KIA, HYUNDAI, etc), color (RED, WHITE, etc), and type (CAR, BIKE).
+              If not visible, use value "NOT_FOUND".` 
+            },
             { inlineData: { mimeType: file.type, data: base64Data } }
           ]
         }
       });
 
-      const extracted = response.text?.trim() || '';
-      if (extracted && extracted !== 'NOT_FOUND') {
-        setFormData(prev => ({ ...prev, vehicleNumber: extracted.toUpperCase() }));
-      }
+      const raw = response.text?.replace(/```json|```/g, '').trim() || '{}';
+      const extracted = JSON.parse(raw);
+      
+      setFormData(prev => ({ 
+        ...prev, 
+        vehicleNumber: extracted.plate !== 'NOT_FOUND' ? extracted.plate.toUpperCase() : prev.vehicleNumber,
+        vehicleBrand: extracted.brand !== 'NOT_FOUND' ? extracted.brand.toUpperCase() : prev.vehicleBrand,
+        vehicleColor: extracted.color !== 'NOT_FOUND' ? extracted.color.toUpperCase() : prev.vehicleColor,
+        vehicleType: extracted.type !== 'NOT_FOUND' ? extracted.type.toLowerCase() : prev.vehicleType
+      }));
     } catch (err) {
       console.error('AI Scan failed:', err);
     } finally {
@@ -128,17 +139,17 @@ export default function PartnerOnboarding() {
   const completeMapping = async () => {
     console.log('--- Registering Vehicle ---');
     if (!user) {
-      alert("Authentication Error: Please log in again.");
+      setInternalError("Authentication Error: Please log in again.");
       return;
     }
     
     if (!formData.selectedQrId) {
-      alert("Input Error: Please select an active QR code from your inventory.");
+      setInternalError("Input Error: Please select an active QR code from your inventory.");
       return;
     }
     
     if (profile?.role !== 'partner') {
-      alert("Permission Error: Your account must be a Partner to register vehicles.");
+      setInternalError("Permission Error: Your account must be a Partner to register vehicles.");
       return;
     }
 
@@ -169,13 +180,18 @@ export default function PartnerOnboarding() {
         const years = formData.plan === '5yr' ? 5 : formData.plan === '2yr' ? 2 : 1;
         expiryDate.setFullYear(expiryDate.getFullYear() + years);
 
+        const syntheticOwnerUid = 'PARTNER_REGISTERED_' + Math.random().toString(36).slice(2, 9);
+
         console.log('Writing vehicle parameters...');
         transaction.set(vehicleRef, {
           id: vehicleRef.id,
-          ownerUid: 'PARTNER_REGISTERED_' + Math.random().toString(36).slice(2, 9),
+          ownerUid: syntheticOwnerUid,
           partnerUid: user.uid,
           qrId: formData.selectedQrId,
           vehicleNumber: (formData.vehicleNumber || '').trim().toUpperCase(),
+          model: formData.vehicleBrand,
+          color: formData.vehicleColor,
+          type: formData.vehicleType,
           ownerName: formData.customerName,
           phone: formData.phone,
           whatsapp: formData.whatsapp,
@@ -183,6 +199,7 @@ export default function PartnerOnboarding() {
           planId: formData.plan,
           subscriptionExpiry: expiryDate,
           status: 'active',
+          isDeleted: false,
           createdAt: serverTimestamp(),
         });
 
@@ -201,6 +218,19 @@ export default function PartnerOnboarding() {
           vehicleId: vehicleRef.id,
           amount: formData.plan === '5yr' ? 200 : 100,
           status: 'pending',
+          createdAt: serverTimestamp(),
+        });
+
+        console.log('Recording payment revenue...');
+        const paymentRef = doc(collection(db, 'payments'));
+        transaction.set(paymentRef, {
+          id: paymentRef.id,
+          userId: syntheticOwnerUid,
+          vehicleId: vehicleRef.id,
+          amount: formData.plan === '5yr' ? 1000 : formData.plan === '2yr' ? 500 : 250,
+          status: 'success',
+          channel: 'partner',
+          partnerUid: user.uid,
           createdAt: serverTimestamp(),
         });
 
@@ -230,7 +260,7 @@ export default function PartnerOnboarding() {
       if (err.code === 'permission-denied') {
         friendlyMsg = "Security Block: You don't have permission to write this data. Please check your role.";
       }
-      alert(`System Error: ${friendlyMsg}`);
+      setInternalError(`System Error: ${friendlyMsg}`);
     } finally {
       setLoading(false);
     }
@@ -396,6 +426,47 @@ export default function PartnerOnboarding() {
                       placeholder="e.g. MH 12 AB 1234"
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl py-4 px-5 focus:ring-2 focus:ring-blue-100 outline-none font-black text-slate-900 uppercase tracking-widest text-lg"
                     />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Vehicle Brand / Model</label>
+                      <input 
+                        name="vehicleBrand"
+                        value={formData.vehicleBrand}
+                        onChange={handleInputChange}
+                        placeholder="e.g. KIA SELTOS"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-4 px-5 focus:ring-2 focus:ring-blue-100 outline-none font-bold text-slate-900 uppercase"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Vehicle Color</label>
+                      <input 
+                        name="vehicleColor"
+                        value={formData.vehicleColor}
+                        onChange={handleInputChange}
+                        placeholder="e.g. WHITE"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl py-4 px-5 focus:ring-2 focus:ring-blue-100 outline-none font-bold text-slate-900 uppercase"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Vehicle Type</label>
+                    <div className="flex gap-4">
+                      {['car', 'bike', 'scooter'].map(t => (
+                        <button
+                          key={t}
+                          onClick={() => setFormData({...formData, vehicleType: t as any})}
+                          className={cn(
+                            "flex-1 py-3 rounded-lg text-[10px] font-black uppercase border-2 transition-all",
+                            formData.vehicleType === t ? "border-blue-600 bg-blue-50 text-blue-600" : "border-slate-100 text-slate-400"
+                          )}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">

@@ -108,8 +108,7 @@ export default function RegisterVehicle() {
 
       setStep(4);
     } catch (err) {
-      console.error(err);
-      alert('Failed to register vehicle. Please try again.');
+      console.error("Registration error:", err);
     } finally {
       setLoading(false);
     }

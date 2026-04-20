@@ -23,33 +23,62 @@ export default function PublicScan() {
   const [reportSuccess, setReportSuccess] = useState(false);
 
   useEffect(() => {
+    // Capture Location & Device Info
+    const captureScan = (vehicleData: Vehicle, qrIdParam?: string) => {
+      const ua = navigator.userAgent;
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(ua);
+      const isTablet = /iPad/i.test(ua);
+      
+      const fireLog = (lat?: number, lng?: number) => {
+        addDoc(collection(db, 'logs'), {
+           vehicleId: vehicleData.id,
+           action: 'scan',
+           timestamp: serverTimestamp(),
+           device: {
+             browser: ua.includes('Firefox') ? 'Firefox' : ua.includes('Chrome') ? 'Chrome' : 'Safari',
+             os: ua.includes('Android') ? 'Android' : ua.includes('iPhone') ? 'iOS' : 'Windows/Mac',
+             type: isTablet ? 'tablet' : isMobile ? 'mobile' : 'desktop'
+           },
+           location: { 
+             city: lat ? 'Live' : 'Unknown', 
+             region: 'Live', 
+             country: 'IN',
+             lat: lat || null,
+             lng: lng || null
+           },
+           metadata: { 
+             userAgent: ua,
+             qrId: qrIdParam || null,
+             vehicleNumber: vehicleData.vehicleNumber
+           }
+        });
+      };
+
+      if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => fireLog(pos.coords.latitude, pos.coords.longitude),
+          () => fireLog(),
+          { timeout: 5000 }
+        );
+      } else {
+        fireLog();
+      }
+    };
+
     async function fetchVehicle() {
       if (!id) return;
       try {
-        // Step 1: Look up the QR sticker info
         const qrDoc = await getDoc(doc(db, 'qr_inventory', id));
         
         if (qrDoc.exists()) {
           const qrData = qrDoc.data();
           if (qrData.status === 'assigned' && qrData.mappedVehicleId) {
-            // Step 2: Fetch the actual vehicle profile
             const vDoc = await getDoc(doc(db, 'vehicles', qrData.mappedVehicleId));
             if (vDoc.exists()) {
-              setVehicle(vDoc.data() as Vehicle);
+              const vData = vDoc.data() as Vehicle;
+              setVehicle(vData);
               generateCaptcha();
-              
-              // Non-blocking scan log
-              try {
-                addDoc(collection(db, 'logs'), {
-                  vehicleId: qrData.mappedVehicleId,
-                  action: 'scan',
-                  timestamp: serverTimestamp(),
-                  metadata: { userAgent: navigator.userAgent }
-                });
-              } catch (e) {
-                console.warn("Log failed:", e);
-              }
-      
+              captureScan(vData, id);
               setLoading(false);
               return;
             }
@@ -60,11 +89,12 @@ export default function PublicScan() {
           }
         }
         
-        // Fallback: Check if ID is a direct vehicle ID (for self-service / testing)
         const directDoc = await getDoc(doc(db, 'vehicles', id));
         if (directDoc.exists()) {
-          setVehicle(directDoc.data() as Vehicle);
+          const vData = directDoc.data() as Vehicle;
+          setVehicle(vData);
           generateCaptcha();
+          captureScan(vData, id);
           setLoading(false);
         } else {
           setError('Safety profile not active or invalid QR node.');
@@ -92,19 +122,51 @@ export default function PublicScan() {
     if (captchaInput.toUpperCase() === captchaText) {
       setIsVerified(true);
     } else {
-      alert('Invalid code. Please try again.');
+      setError('Invalid verification code. Please refresh the captcha and try again.');
       setCaptchaInput('');
       generateCaptcha();
     }
   };
 
-  const logAction = async (action: 'call' | 'whatsapp' | 'emergency') => {
-    if (!id) return;
-    await addDoc(collection(db, 'logs'), {
-      vehicleId: id,
-      action,
-      timestamp: serverTimestamp(),
-    });
+  const logAction = async (action: 'call' | 'whatsapp' | 'emergency', msg?: string) => {
+    if (!id || !vehicle) return;
+    const ua = navigator.userAgent;
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(ua);
+    const isTablet = /iPad/i.test(ua);
+
+    const captureLog = (lat?: number, lng?: number) => {
+      addDoc(collection(db, 'logs'), {
+        vehicleId: vehicle.id,
+        action,
+        timestamp: serverTimestamp(),
+        device: {
+          browser: ua.includes('Firefox') ? 'Firefox' : ua.includes('Chrome') ? 'Chrome' : 'Safari',
+          os: ua.includes('Android') ? 'Android' : ua.includes('iPhone') ? 'iOS' : 'Windows/Mac',
+          type: isTablet ? 'tablet' : isMobile ? 'mobile' : 'desktop'
+        },
+        location: { 
+          city: lat ? 'Live' : 'Unknown', 
+          region: 'Live', 
+          lat: lat || null,
+          lng: lng || null
+        },
+        metadata: { 
+          message: msg || null,
+          vehicleNumber: vehicle.vehicleNumber,
+          userAgent: ua
+        }
+      });
+    };
+
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => captureLog(pos.coords.latitude, pos.coords.longitude),
+        () => captureLog(),
+        { timeout: 5000 }
+      );
+    } else {
+      captureLog();
+    }
   };
 
   const handleCall = () => {
@@ -119,15 +181,9 @@ export default function PublicScan() {
   };
 
   const submitEmergency = async () => {
-    if (!id) return;
+    if (!id || !vehicle) return;
     setLoading(true);
-    await addDoc(collection(db, 'logs'), {
-      vehicleId: id,
-      action: 'emergency',
-      timestamp: serverTimestamp(),
-      metadata: { message: emergencySummary.message }
-    });
-    // In real app, send push or SMS
+    await logAction('emergency', emergencySummary.message);
     setReportSuccess(true);
     setLoading(false);
     setIsReporting(false);

@@ -48,7 +48,7 @@ export default function PartnerDashboard() {
 
   const executePrint = () => {
     if (selectedIds.length === 0) {
-      alert("Select nodes to print first.");
+      console.warn("Print skipped: Select nodes to print first.");
       return;
     }
     const printWindow = window.open('', '_blank');
@@ -166,8 +166,7 @@ export default function PartnerDashboard() {
       link.download = `MY_PRINT_READY_STOCK_${Date.now()}.zip`;
       link.click();
     } catch (err) {
-      console.error(err);
-      alert('Batch production failed.');
+      console.error("Batch production error:", err);
     } finally {
       setIsZipping(false);
     }
