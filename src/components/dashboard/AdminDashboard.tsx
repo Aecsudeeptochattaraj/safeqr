@@ -3,7 +3,19 @@ import { db } from '../../lib/firebase';
 import { collection, query, getDocs, limit, serverTimestamp, writeBatch, doc, where, updateDoc, onSnapshot, addDoc, deleteDoc } from 'firebase/firestore';
 import { AppUser, QRInventory, LogEntry } from '../../types';
 import { useAuth } from '../../hooks/useAuth';
-import { Users, Car, Coins, ShieldCheck, QrCode, Package, Download, UserMinus, Layers, Loader2, Printer, ExternalLink, Trash2, Repeat, AlertTriangle, CheckCircle2, TrendingUp, Activity, Clock, PieChart, Info, Search, UserX, UserCheck, ShieldOff, Eye, Map, List } from 'lucide-react';
+import { Users, Car, Coins, ShieldCheck, QrCode, Package, Download, UserMinus, Layers, Loader2, Printer, ExternalLink, Trash2, Repeat, AlertTriangle, CheckCircle2, TrendingUp, Activity, Clock, PieChart, Info, Search, UserX, UserCheck, ShieldOff, Eye, Map, List, ChevronDown, LayoutDashboard } from 'lucide-react';
+
+const viewConfig = [
+  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'insights', label: 'Insights', icon: Activity },
+  { id: 'financials', label: 'Financials', icon: Coins },
+  { id: 'supply_chain', label: 'Supply Chain', icon: Layers },
+  { id: 'audit_logs', label: 'Audit Logs', icon: List },
+  { id: 'qr_management', label: 'QR Management', icon: QrCode },
+  { id: 'fleet', label: 'Fleet', icon: Car },
+  { id: 'users', label: 'Users', icon: Users },
+  { id: 'danger_zone', label: 'Danger Zone', icon: AlertTriangle },
+] as const;
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -35,6 +47,7 @@ type TimeRange = 'all' | 'today' | 'week' | 'month' | 'year' | 'custom';
 
 export default function AdminDashboard() {
   const [timeRange, setTimeRange] = useState<TimeRange>('month');
+  const [isMobileDropdownOpen, setIsMobileDropdownOpen] = useState(false);
   const [stats, setStats] = useState({ 
     users: 0, 
     vehicles: 0, 
@@ -151,41 +164,99 @@ export default function AdminDashboard() {
   }, []);
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-12 font-sans">
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-12 gap-8">
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <ShieldCheck className="w-5 h-5 text-blue-600" />
-            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-600">Administrator Console</span>
+    <div className="max-w-[90rem] mx-auto px-4 sm:px-6 py-12 font-sans bg-[#f8fafc] min-h-screen">
+      
+      {/* Premium Header Layout */}
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end mb-10 gap-8">
+        <div className="max-w-2xl">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-100/50 border border-blue-200/50 mb-4 backdrop-blur-sm shadow-sm">
+            <ShieldCheck className="w-4 h-4 text-blue-700" />
+            <span className="text-[10px] font-black uppercase tracking-[0.25em] text-blue-700">Administrator Console</span>
           </div>
-          <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase leading-none">System Intelligence</h1>
-          <p className="text-slate-500 font-medium mt-2">Global oversight and inventory dispatch control.</p>
+          <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight">
+            System Intelligence
+          </h1>
+          <p className="text-slate-500 font-medium mt-3 text-base md:text-lg">
+            Global oversight, real-time telemetry, and inventory dispatch control.
+          </p>
         </div>
-        <div className="flex flex-col items-end gap-4">
-          <div className="flex bg-slate-100 p-1.5 rounded-xl border border-slate-200 overflow-x-auto max-w-full">
-            {(['overview', 'insights', 'financials', 'supply_chain', 'audit_logs', 'qr_management', 'fleet', 'users', 'danger_zone'] as const).map(v => (
+        
+        <div className="flex flex-col items-start xl:items-end w-full xl:w-auto gap-4">
+          
+          {/* Mobile Glassmorphism Dropdown */}
+          <div className="w-full xl:hidden relative z-50">
+            <label className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] ml-1 mb-2 block">Active Dashboard Module</label>
+            <button 
+              onClick={() => setIsMobileDropdownOpen(!isMobileDropdownOpen)}
+              className="w-full flex items-center justify-between bg-white/80 backdrop-blur-md border border-slate-200/80 rounded-2xl py-4 px-5 focus:ring-4 focus:ring-blue-100/50 outline-none shadow-sm transition-all"
+            >
+              <div className="flex items-center gap-3">
+                {(() => {
+                  const activeConfig = viewConfig.find(v => v.id === view);
+                  const Icon = activeConfig?.icon || LayoutDashboard;
+                  return <Icon className={cn("w-5 h-5", view === 'danger_zone' ? 'text-red-500' : 'text-blue-600')} />;
+                })()}
+                <span className="font-extrabold text-slate-900 uppercase tracking-widest text-[11px]">
+                  {view.replace('_', ' ')}
+                </span>
+              </div>
+              <ChevronDown className={cn("w-5 h-5 text-slate-400 transition-transform duration-300 ease-out", isMobileDropdownOpen && "rotate-180")} />
+            </button>
+            
+            {isMobileDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-40 bg-slate-900/10 backdrop-blur-sm" onClick={() => setIsMobileDropdownOpen(false)}></div>
+                <div className="absolute top-[calc(100%+8px)] left-0 w-full bg-white/95 backdrop-blur-xl border border-slate-200/60 rounded-2xl shadow-2xl z-50 overflow-hidden transform opacity-100 transition-all origin-top scale-100">
+                  <div className="flex flex-col max-h-[60vh] overflow-y-auto p-2 hide-scrollbar">
+                    {viewConfig.map(v => (
+                      <button 
+                        key={v.id}
+                        onClick={() => { setView(v.id as any); setIsMobileDropdownOpen(false); }}
+                        className={cn(
+                          "w-full flex items-center gap-3 text-left px-4 py-4 rounded-xl transition-all duration-200 group mb-1 last:mb-0",
+                          view === v.id 
+                            ? (v.id === 'danger_zone' ? 'bg-red-50 text-red-600 shadow-sm border border-red-100' : 'bg-blue-50 text-blue-700 shadow-sm border border-blue-100') 
+                            : (v.id === 'danger_zone' ? 'text-red-500 hover:bg-red-50/50 border border-transparent' : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900 border border-transparent')
+                        )}
+                      >
+                        <v.icon className={cn("w-5 h-5 transition-transform duration-200 group-hover:scale-110", view === v.id ? 'opacity-100' : 'opacity-70')} />
+                        <span className="text-[11px] font-black uppercase tracking-widest mt-0.5">{v.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Desktop High-End Pill Navigation */}
+          <div className="hidden xl:flex flex-wrap justify-end gap-2 bg-white/60 backdrop-blur-md p-1.5 rounded-2xl border border-slate-200/80 shadow-sm">
+            {viewConfig.map(v => (
               <button 
-                key={v}
-                onClick={() => setView(v)}
+                key={v.id}
+                onClick={() => setView(v.id as any)}
                 className={cn(
-                  "px-6 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
-                  view === v ? (v === 'danger_zone' ? 'bg-red-600 text-white shadow-sm' : 'bg-white text-blue-600 shadow-sm') : (v === 'danger_zone' ? 'text-red-500 hover:text-red-700' : 'text-slate-500 hover:text-slate-900')
+                  "flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-[0.15em] transition-all duration-200",
+                  view === v.id 
+                    ? (v.id === 'danger_zone' ? 'bg-red-500 text-white shadow-md shadow-red-200 translate-y-[-1px]' : 'bg-slate-900 text-white shadow-md shadow-slate-300 translate-y-[-1px]') 
+                    : (v.id === 'danger_zone' ? 'text-red-500 hover:bg-red-50 hover:text-red-600' : 'text-slate-500 hover:bg-white hover:text-slate-900 hover:shadow-sm')
                 )}
               >
-                {v.replace('_', ' ')}
+                <v.icon className="w-4 h-4" />
+                {v.label}
               </button>
             ))}
           </div>
           
           {view === 'insights' && (
-            <div className="flex bg-slate-900/5 p-1 rounded-lg border border-slate-200">
+            <div className="flex bg-white/60 backdrop-blur-md p-1.5 rounded-xl border border-slate-200/80 shadow-sm">
                {(['today', 'week', 'month', 'year'] as const).map(tr => (
                   <button 
                     key={tr}
                     onClick={() => setTimeRange(tr)}
                     className={cn(
-                      "px-4 py-1.5 rounded-md text-[9px] font-black uppercase tracking-widest transition-all",
-                      timeRange === tr ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'
+                      "px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
+                      timeRange === tr ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
                     )}
                   >
                     {tr}

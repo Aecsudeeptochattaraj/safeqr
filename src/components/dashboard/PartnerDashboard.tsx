@@ -173,38 +173,43 @@ export default function PartnerDashboard() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-12 font-sans">
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-12 gap-8">
-        <div>
-          <div className="flex items-center gap-2 mb-2">
-            <Users className="w-5 h-5 text-blue-600" />
-            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Showroom / Partner Node</span>
+    <div className="max-w-[90rem] mx-auto px-4 sm:px-6 py-12 font-sans bg-[#f8fafc] min-h-screen">
+      
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end mb-10 gap-8">
+        <div className="max-w-2xl">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-200/50 border border-slate-300/50 mb-4 backdrop-blur-sm shadow-sm">
+            <Users className="w-4 h-4 text-slate-700" />
+            <span className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-700">Showroom / Partner Node</span>
           </div>
-          <h1 className="text-4xl font-black text-slate-900 tracking-tighter uppercase leading-none">Showroom Dashboard</h1>
-          <p className="text-slate-500 mt-2 font-medium">Manage and map your visual node inventory.</p>
+          <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight">
+            Showroom Dashboard
+          </h1>
+          <p className="text-slate-500 font-medium mt-3 text-base md:text-lg">
+            Manage your local inventory and rapidly map customer telemetry.
+          </p>
         </div>
-        <div className="flex flex-wrap gap-4">
+        <div className="flex flex-wrap gap-3">
            <button 
              onClick={executePrint}
              disabled={selectedIds.length === 0}
-             className="flex items-center px-6 py-4 bg-blue-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 transition-all disabled:opacity-50 shadow-xl shadow-blue-200"
+             className="flex items-center px-6 py-4 bg-white text-slate-900 border border-slate-200 rounded-2xl text-[10.5px] font-black uppercase tracking-[0.15em] hover:bg-slate-50 hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:hover:shadow-none shadow-sm"
            >
-             <Printer className="w-5 h-5 mr-3" />
-             Print Selected ({selectedIds.length})
+             <Printer className="w-4 h-4 mr-2" />
+             Print ({selectedIds.length})
            </button>
            <button 
              onClick={downloadAllAvailableQRs}
              disabled={isZipping || stats.availableStock === 0}
-             className="flex items-center px-6 py-4 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all disabled:opacity-50 shadow-xl shadow-slate-200"
+             className="flex items-center px-6 py-4 bg-blue-600 text-white rounded-2xl text-[10.5px] font-black uppercase tracking-[0.15em] hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-200 transition-all duration-200 disabled:opacity-50 disabled:hover:shadow-none shadow-md"
            >
-             {isZipping ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Download className="w-5 h-5 mr-3" />}
-             Bulk ZIP Stock ({stats.availableStock})
+             {isZipping ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Download className="w-4 h-4 mr-2" />}
+             Bulk ZIP ({stats.availableStock})
            </button>
            <Link 
              to="/partner/onboard"
-             className="flex items-center px-8 py-4 bg-white text-slate-900 border-2 border-slate-900 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all shadow-lg shadow-slate-100 hover:scale-105 active:scale-95"
+             className="flex items-center px-8 py-4 bg-slate-900 text-white rounded-2xl text-[10.5px] font-black uppercase tracking-[0.15em] hover:bg-black hover:shadow-lg hover:shadow-slate-300 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 shadow-md"
            >
-             <Plus className="w-5 h-5 mr-3" />
+             <Plus className="w-4 h-4 mr-2" />
              New Map
            </Link>
         </div>
