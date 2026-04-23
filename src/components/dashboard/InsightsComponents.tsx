@@ -1,13 +1,13 @@
 import React from 'react';
 import { db } from '../../lib/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Cell, Legend, PieChart, Pie
 } from 'recharts';
 import { format, subDays, startOfDay, isWithinInterval, startOfWeek, startOfMonth } from 'date-fns';
 import { LogEntry } from '../../types';
-import { Activity, Clock, TrendingUp, AlertCircle, CheckCircle2, Repeat, Package, Trash2, Smartphone, QrCode, Layers, Search, Download as DownloadIcon, UserPlus, Filter, BrainCircuit, AlertTriangle, ArrowRight, MousePointerClick, RefreshCw, Car, DollarSign, Percent, Wallet, Banknote, Calendar } from 'lucide-react';
+import { Activity, Clock, TrendingUp, AlertCircle, CheckCircle2, Repeat, Package, Trash2, Smartphone, QrCode, Layers, Search, Download as DownloadIcon, UserPlus, Filter, BrainCircuit, AlertTriangle, ArrowRight, MousePointerClick, RefreshCw, Car, DollarSign, Percent, Wallet, Banknote, Calendar, ShieldCheck, Loader2 } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#6366f1'];
@@ -1065,6 +1065,337 @@ export function FinancialsManagement({ payments, commissions, users, vehicles, c
           </table>
         </div>
       </div>
+    </div>
+  );
+}
+
+export function FutureProjection() {
+  const projectionData = [
+    { year: 'Year 1', units: 10000, revenue: 5000000, profit: 1500000, growth: 'Foundational' },
+    { year: 'Year 2', units: 50000, revenue: 25000000, profit: 12000000, growth: '500%' },
+    { year: 'Year 3', units: 150000, revenue: 100000000, profit: 55000000, growth: '300%' },
+    { year: 'Year 4', units: 500000, revenue: 450000000, profit: 280000000, growth: '330%' },
+    { year: 'Year 5', units: 1500000, revenue: 1500000000, profit: 1100000000, growth: '300%' },
+  ];
+
+  return (
+    <div className="space-y-10">
+      <div className="bg-slate-900 p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] text-white shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-600/20 blur-[100px] rounded-full"></div>
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-600/10 blur-[80px] rounded-full"></div>
+        
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="bg-white/10 p-2 rounded-xl backdrop-blur-md border border-white/10">
+              <TrendingUp className="w-6 h-6 text-blue-400" />
+            </div>
+            <div>
+              <h3 className="text-sm font-black uppercase tracking-[0.3em] text-blue-400">Strategic Forecast</h3>
+              <h2 className="text-2xl md:text-3xl font-black tracking-tighter uppercase">5-Year Growth Trajectory</h2>
+            </div>
+          </div>
+          
+          <p className="text-slate-400 font-medium max-w-2xl text-base md:text-lg leading-relaxed mb-10">
+            This projection models a rapid expansion phase where renewals and ecosystem integrations drive exponential profitability compared to initial hardware distribution costs.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+             <div className="bg-white/5 border border-white/10 p-8 rounded-3xl backdrop-blur-md">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Terminal Profit (Y5)</p>
+                <h4 className="text-4xl font-black text-green-400">₹110 Cr</h4>
+                <p className="text-[10px] text-slate-500 mt-2 font-bold italic">Estimated net surplus after all payouts.</p>
+             </div>
+             <div className="bg-white/5 border border-white/10 p-8 rounded-3xl backdrop-blur-md">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Market Penetration</p>
+                <h4 className="text-4xl font-black text-blue-400">1.5M</h4>
+                <p className="text-[10px] text-slate-500 mt-2 font-bold italic">Active vehicle nodes mapped globally.</p>
+             </div>
+             <div className="bg-white/5 border border-white/10 p-8 rounded-3xl backdrop-blur-md md:col-span-2 lg:col-span-1">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Avg. Retention Rate</p>
+                <h4 className="text-4xl font-black text-indigo-400">82%</h4>
+                <p className="text-[10px] text-slate-500 mt-2 font-bold italic">Annual subscription renewal forecast.</p>
+             </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-200 shadow-sm">
+           <div className="flex justify-between items-center mb-8">
+              <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                <BarChart className="w-4 h-4 text-blue-600" />
+                Revenue & Profit Lifecycle
+              </h3>
+           </div>
+           <div className="h-[300px] md:h-[400px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={projectionData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis 
+                    dataKey="year" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#64748b', fontSize: 10, fontWeight: 900 }} 
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#64748b', fontSize: 10, fontWeight: 900 }}
+                    tickFormatter={(val) => `₹${(val / 10000000).toFixed(0)}Cr`}
+                  />
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', padding: '12px' }}
+                    cursor={{ fill: '#f8fafc' }}
+                  />
+                  <Legend iconType="circle" />
+                  <Bar dataKey="revenue" name="Gross Revenue" fill="#1e293b" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="profit" name="Net Profit" fill="#10b981" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+           </div>
+        </div>
+
+        <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-200 shadow-sm">
+           <div className="flex justify-between items-center mb-8">
+              <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
+                <Activity className="w-4 h-4 text-indigo-600" />
+                Node Installation Volume
+              </h3>
+           </div>
+           <div className="h-[300px] md:h-[400px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={projectionData}>
+                  <defs>
+                    <linearGradient id="colorUnits" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis 
+                    dataKey="year" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#64748b', fontSize: 10, fontWeight: 900 }} 
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fill: '#64748b', fontSize: 10, fontWeight: 900 }}
+                    tickFormatter={(val) => `${(val / 1000).toFixed(0)}K`}
+                  />
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}
+                  />
+                  <Area type="monotone" dataKey="units" name="Active Vehicles" stroke="#4f46e5" strokeWidth={4} fillOpacity={1} fill="url(#colorUnits)" />
+                </AreaChart>
+              </ResponsiveContainer>
+           </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-[2rem] border border-slate-200 overflow-hidden overflow-x-auto">
+         <div className="px-8 py-6 border-b border-slate-100 bg-slate-50/50">
+            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Growth Roadmap Milestones</h3>
+         </div>
+         <table className="w-full text-left min-w-[600px]">
+           <thead className="bg-white border-b border-slate-50 text-[9px] font-black uppercase text-slate-400 tracking-widest">
+             <tr>
+               <th className="px-8 py-4">Fiscal Year</th>
+               <th className="px-8 py-4">Growth Phase</th>
+               <th className="px-8 py-4">Est. Revenue</th>
+               <th className="px-8 py-4">Est. Profit</th>
+               <th className="px-8 py-4 text-right">Expansion Velocity</th>
+             </tr>
+           </thead>
+           <tbody className="divide-y divide-slate-50">
+             {projectionData.map((d, index) => (
+               <tr key={index} className="hover:bg-slate-50 transition-colors">
+                 <td className="px-8 py-5 text-sm font-black text-slate-900">{d.year}</td>
+                 <td className="px-8 py-5">
+                    <span className="text-[10px] font-bold text-slate-600 uppercase tracking-tight">
+                      {index === 0 ? "Initial Node Seed" : (index === 4 ? "National Coverage" : "Network Scaling")}
+                    </span>
+                 </td>
+                 <td className="px-8 py-5 text-sm font-black text-slate-900">₹{(d.revenue / 10000000).toFixed(1)} Cr</td>
+                 <td className="px-8 py-5 text-sm font-black text-green-600">₹{(d.profit / 10000000).toFixed(1)} Cr</td>
+                 <td className="px-8 py-5 text-right">
+                    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${index === 0 ? "bg-slate-100 text-slate-500" : "bg-blue-50 text-blue-600"}`}>
+                      {d.growth}
+                    </span>
+                 </td>
+               </tr>
+             ))}
+           </tbody>
+         </table>
+      </div>
+    </div>
+  );
+}
+
+export function PaymentVerificationModule({ payments, users }: any) {
+  const [filter, setFilter] = React.useState('pending');
+  const [updating, setUpdating] = React.useState<string | null>(null);
+
+  const filteredPayments = payments.filter((p: any) => {
+    return filter === 'all' || p.status === filter;
+  }).sort((a: any, b: any) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+
+  const handleAction = async (paymentId: string, vehicleId: string, action: 'verified' | 'rejected') => {
+    setUpdating(paymentId);
+    try {
+      if (action === 'rejected') {
+        const reason = prompt("Enter rejection reason (User will see this):");
+        if (!reason) { setUpdating(null); return; }
+        await updateDoc(doc(db, 'payments', paymentId), { 
+          status: 'rejected', 
+          rejectionReason: reason,
+          updatedAt: serverTimestamp() 
+        });
+        await updateDoc(doc(db, 'vehicles', vehicleId), { 
+          status: 'payment_rejected',
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        // 1. Verify Payment
+        await updateDoc(doc(db, 'payments', paymentId), { 
+          status: 'verified',
+          updatedAt: serverTimestamp()
+        });
+        
+        // 2. Fetch Vehicle to check if it already has a QR ID
+        const vehicleSnap = await getDoc(doc(db, 'vehicles', vehicleId));
+        const vehicleData = vehicleSnap.data();
+        
+        if (!vehicleData) throw new Error("Vehicle not found.");
+
+        const updates: any = { 
+          status: 'active',
+          updatedAt: serverTimestamp()
+        };
+
+        // 3. Handle QR ID (Mint if null, else keep)
+        if (!vehicleData.qrId) {
+          // Direct user flow - needs a new ID
+          const newQrId = `SECURE-QR-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+          updates.qrId = newQrId;
+        } else {
+          // Partner flow - QR already assigned and selected
+          // We need to make sure the qr_inventory record is also set to 'active' if it's not already
+          await updateDoc(doc(db, 'qr_inventory', vehicleData.qrId), {
+            status: 'active',
+            updatedAt: serverTimestamp()
+          });
+        }
+
+        await updateDoc(doc(db, 'vehicles', vehicleId), updates);
+      }
+    } catch (err: any) {
+      console.error("Verification Error:", err);
+      alert(`Error updating payment: ${err.message}`);
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
+       <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+          <div>
+            <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Manual Payment Queue</h3>
+            <p className="text-xs text-slate-500 font-medium mt-1">Verify uploaded UPI transaction IDs against screenshots to prevent fraud.</p>
+          </div>
+          <div className="flex gap-2 bg-white border border-slate-200 p-1 rounded-xl shadow-sm cursor-pointer">
+             {(['pending', 'verified', 'rejected', 'all'] as const).map(f => (
+               <button 
+                 key={f}
+                 onClick={() => setFilter(f)}
+                 className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${filter === f ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}
+               >
+                 {f}
+               </button>
+             ))}
+          </div>
+       </div>
+
+       <div className="overflow-x-auto min-h-[50vh]">
+         {filteredPayments.length === 0 ? (
+           <div className="flex flex-col items-center justify-center py-32 text-slate-400">
+             <ShieldCheck className="w-12 h-12 mb-4 opacity-50" />
+             <p className="text-xs font-black uppercase tracking-widest">No {filter !== 'all' && filter} payments found.</p>
+           </div>
+         ) : (
+           <table className="w-full text-left">
+             <thead className="bg-white border-b border-slate-100 text-[10px] font-black uppercase text-slate-400 tracking-[0.15em]">
+               <tr>
+                 <th className="px-8 py-5">TXN Identity</th>
+                 <th className="px-8 py-5">Amount</th>
+                 <th className="px-8 py-5">Submission Date</th>
+                 <th className="px-8 py-5 text-center">Receipt Evidence</th>
+                 <th className="px-8 py-5 text-right">Verification Action</th>
+               </tr>
+             </thead>
+             <tbody className="divide-y divide-slate-50 bg-slate-50/10">
+               {filteredPayments.map((p: any) => {
+                 const user = users.find((u: any) => u.uid === p.userId);
+                 const d = p.createdAt?.toDate ? format(p.createdAt.toDate(), 'PP p') : 'Just now';
+                 
+                 return (
+                   <tr key={p.id} className="hover:bg-blue-50/30 transition-colors">
+                     <td className="px-8 py-5">
+                       <p className="text-sm font-black text-slate-900 uppercase tracking-wider">{p.transactionId || 'UNKNOWN_TXN'}</p>
+                       <p className="text-xs text-slate-500 font-bold mt-0.5">{user?.displayName || p.userId}</p>
+                     </td>
+                     <td className="px-8 py-5">
+                       <span className="text-sm font-black text-slate-900">₹{p.amount}</span>
+                     </td>
+                     <td className="px-8 py-5">
+                       <p className="text-[11px] font-bold text-slate-600">{d}</p>
+                     </td>
+                     <td className="px-8 py-5 text-center">
+                       {p.scrubbedScreenshotUrl ? (
+                         <div className="inline-block relative group">
+                           <a href={p.scrubbedScreenshotUrl} target="_blank" rel="noopener noreferrer">
+                             <img src={p.scrubbedScreenshotUrl} alt="Receipt" className="h-16 w-16 object-cover rounded-xl border border-slate-200 shadow-sm transition-transform group-hover:scale-110" />
+                           </a>
+                           <div className="absolute -top-2 -right-2 bg-blue-100 text-blue-600 text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">VIEW</div>
+                         </div>
+                       ) : (
+                         <span className="text-[10px] text-slate-400 font-bold italic">No File</span>
+                       )}
+                     </td>
+                     <td className="px-8 py-5 text-right">
+                       {p.status === 'pending' ? (
+                          <div className="flex items-center justify-end gap-2">
+                             <button
+                               onClick={() => handleAction(p.id, p.vehicleId, 'rejected')}
+                               disabled={updating === p.id}
+                               className="px-4 py-2 bg-red-50 text-red-600 font-black text-[10px] uppercase tracking-widest rounded-lg hover:bg-red-100 transition-colors"
+                             >
+                               Reject
+                             </button>
+                             <button
+                               onClick={() => handleAction(p.id, p.vehicleId, 'verified')}
+                               disabled={updating === p.id}
+                               className="flex items-center gap-2 px-6 py-2 bg-slate-900 text-white font-black text-[10px] uppercase tracking-widest rounded-lg hover:bg-slate-800 transition-colors shadow-sm"
+                             >
+                               {updating === p.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <ShieldCheck className="w-3 h-3" />}
+                               Approve
+                             </button>
+                          </div>
+                       ) : (
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${p.status === 'verified' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                             {p.status === 'verified' ? 'Approved' : 'Rejected'}
+                          </span>
+                       )}
+                     </td>
+                   </tr>
+                 );
+               })}
+             </tbody>
+           </table>
+         )}
+       </div>
     </div>
   );
 }

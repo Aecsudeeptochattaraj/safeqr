@@ -83,14 +83,17 @@ export default function PartnerDashboard() {
 
     const qVehicles = query(collection(db, 'vehicles'), where('partnerUid', '==', user.uid));
     const unsubVehicles = onSnapshot(qVehicles, snap => {
-      const docs = snap.docs.map(doc => doc.data() as Vehicle);
-      setVehicles(docs);
+      const allDocs = snap.docs.map(doc => doc.data() as Vehicle);
+      // Only show and calculate commission for APPROVED (active) vehicles
+      const activeDocs = allDocs.filter(v => v.status === 'active');
+      
+      setVehicles(activeDocs);
       
       let earnings = 0;
-      docs.forEach(v => {
+      activeDocs.forEach(v => {
         earnings += v.planId === '5yr' ? 200 : (v.planId === '2yr' ? 100 : 50);
       });
-      setStats(prev => ({ ...prev, mappedVehicles: snap.size, earnings }));
+      setStats(prev => ({ ...prev, mappedVehicles: activeDocs.length, earnings }));
     }, (err) => console.error("Vehicles Stream Error:", err));
 
     const qStock = query(collection(db, 'qr_inventory'), where('partnerUid', '==', user.uid));

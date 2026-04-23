@@ -98,13 +98,27 @@ export default function UserDashboard() {
              >
                 <div className="flex justify-between items-start mb-6">
                   <div>
-                    <span className="inline-block px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full mb-3">Active</span>
+                    <span className={cn(
+                      "inline-block px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-full mb-3",
+                      v.status === 'active' ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+                    )}>
+                      {v.status === 'active' ? 'Active' : 'Awaiting Approval'}
+                    </span>
                     <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">{v.vehicleNumber}</h3>
                     <p className="text-sm text-slate-500 font-medium mt-1">{v.ownerName}</p>
                   </div>
                   <button 
-                    onClick={() => setSelectedQR(v)}
-                    className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600 hover:bg-blue-600 hover:text-white transition-colors"
+                    onClick={() => {
+                      if (v.status !== 'active') return;
+                      setSelectedQR(v);
+                    }}
+                    disabled={v.status !== 'active'}
+                    className={cn(
+                      "w-12 h-12 rounded-lg flex items-center justify-center transition-colors",
+                      v.status === 'active' 
+                        ? "bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white" 
+                        : "bg-slate-100 text-slate-300 cursor-not-allowed"
+                    )}
                   >
                     <QrCode className="w-6 h-6" />
                   </button>
@@ -125,16 +139,30 @@ export default function UserDashboard() {
                   <Link 
                     to={`/s/${v.id}`}
                     target="_blank"
-                    className="flex-1 py-3 px-4 rounded-lg bg-white border border-slate-200 text-slate-700 text-sm font-bold flex items-center justify-center gap-2 hover:bg-slate-50 transition-colors"
+                    className={cn(
+                      "flex-1 py-3 px-4 rounded-lg border text-sm font-bold flex items-center justify-center gap-2 transition-colors",
+                      v.status === 'active'
+                        ? "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                        : "bg-slate-50 border-slate-100 text-slate-300 pointer-events-none"
+                    )}
                   >
                     <ExternalLink className="w-4 h-4" />
                     Public View
                   </Link>
                   <button 
-                    onClick={() => setSelectedQR(v)}
-                    className="flex-1 py-3 px-4 bg-slate-900 text-white rounded-lg text-sm font-bold hover:bg-slate-800 transition-colors"
+                    onClick={() => {
+                      if (v.status !== 'active') return;
+                      setSelectedQR(v);
+                    }}
+                    disabled={v.status !== 'active'}
+                    className={cn(
+                      "flex-1 py-3 px-4 rounded-lg text-sm font-bold transition-colors",
+                      v.status === 'active'
+                        ? "bg-slate-900 text-white hover:bg-slate-800"
+                        : "bg-slate-100 text-slate-300 cursor-not-allowed"
+                    )}
                   >
-                    View QR Code
+                    {v.status === 'active' ? 'View QR Code' : 'Locked'}
                   </button>
                 </div>
              </div>

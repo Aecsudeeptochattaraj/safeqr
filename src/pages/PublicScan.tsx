@@ -76,6 +76,11 @@ export default function PublicScan() {
             const vDoc = await getDoc(doc(db, 'vehicles', qrData.mappedVehicleId));
             if (vDoc.exists()) {
               const vData = vDoc.data() as Vehicle;
+              if (vData.status !== 'active') {
+                setError('This safety terminal is currently awaiting administrative activation. Please check back later.');
+                setLoading(false);
+                return;
+              }
               setVehicle(vData);
               generateCaptcha();
               captureScan(vData, id);
@@ -92,6 +97,11 @@ export default function PublicScan() {
         const directDoc = await getDoc(doc(db, 'vehicles', id));
         if (directDoc.exists()) {
           const vData = directDoc.data() as Vehicle;
+          if (vData.status !== 'active') {
+            setError('This safety terminal is currently awaiting administrative activation. Please check back later.');
+            setLoading(false);
+            return;
+          }
           setVehicle(vData);
           generateCaptcha();
           captureScan(vData, id);

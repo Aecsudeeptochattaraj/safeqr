@@ -12,7 +12,7 @@ import { GoogleGenAI } from '@google/genai';
 import { QRCodeSVG } from 'qrcode.react';
 import { 
   doc, setDoc, serverTimestamp, collection, query, where, getDocs, updateDoc,
-  runTransaction, onSnapshot
+  runTransaction, onSnapshot, orderBy, limit
 } from 'firebase/firestore';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -44,9 +44,148 @@ export default function PartnerOnboarding() {
 
   const [isAiScanning, setIsAiScanning] = useState(false);
 
+  const [transactionId, setTransactionId] = useState('');
+  const [screenshot, setScreenshot] = useState<File | null>(null);
+  const [paymentVerified, setPaymentVerified] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [registeredVehicleId, setRegisteredVehicleId] = useState<string | null>(null);
+  const [syntheticOwnerUid, setSyntheticOwnerUid] = useState<string | null>(null);
+
   useEffect(() => {
     console.log('PartnerOnboarding mounted. User:', user?.email, 'Role:', profile?.role);
   }, [user, profile]);
+
+  const submitPartnerPayment = async () => {
+    if (!transactionId || !screenshot || !registeredVehicleId || !syntheticOwnerUid) {
+      setApiError("Please provide Transaction ID and upload screenshot.");
+      return;
+    }
+
+    setLoading(true);
+    setApiError(null);
+    try {
+      const formDataToSend = new FormData();
+      formDataToSend.append('screenshot', screenshot);
+      formDataToSend.append('transactionId', transactionId);
+      formDataToSend.append('userId', syntheticOwnerUid);
+      formDataToSend.append('amount', (formData.plan === '5yr' ? 1000 : (formData.plan === '2yr' ? 500 : 250)).toString());
+
+      const response = await fetch('/api/submitPayment', {
+        method: 'POST',
+        body: formDataToSend
+      });
+
+      let data: any;
+      const responseText = await response.text();
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseErr) {
+        console.error("Failed to parse API response as JSON:", responseText.slice(0, 500));
+        throw new Error(`Server returned non-JSON response (${response.status}). This often happens if the backend is down or unreachable.`);
+      }
+      
+      if (!response.ok) {
+        const errorMsg = data.details ? `${data.error} (${data.details})` : (data.error || 'Verification submission failed.');
+        throw new Error(errorMsg);
+      }
+
+      const paymentRef = doc(db, 'payments', transactionId);
+      await setDoc(paymentRef, {
+        id: transactionId,
+        userId: syntheticOwnerUid,
+        vehicleId: registeredVehicleId,
+        transactionId,
+        amount: formData.plan === '5yr' ? 1000 : (formData.plan === '2yr' ? 500 : 250),
+        status: 'pending',
+        channel: 'partner',
+        partnerUid: user?.uid,
+        scrubbedScreenshotUrl: data.scrubbedImage,
+        createdAt: serverTimestamp(),
+      });
+
+      setStep(5);
+    } catch (err: any) {
+      console.error("Partner payment error:", err);
+      setApiError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const completeMapping = async () => {
+    if (!user || !formData.selectedQrId || profile?.role !== 'partner') {
+      setInternalError("Required parameters or permissions missing.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const vId = doc(collection(db, 'vehicles')).id;
+      const ownerUid = 'PARTNER_REGISTERED_' + Math.random().toString(36).slice(2, 9);
+      
+      await runTransaction(db, async (transaction) => {
+        const vehicleRef = doc(db, 'vehicles', vId);
+        const qrRef = doc(db, 'qr_inventory', formData.selectedQrId);
+        
+        const qrSnap = await transaction.get(qrRef);
+        if (!qrSnap.exists()) throw new Error("QR not found.");
+        const qrData = qrSnap.data() as QRInventory;
+        
+        if (qrData.partnerUid !== user.uid) throw new Error("Permission Denied.");
+        if (qrData.status === 'assigned') throw new Error("Already assigned.");
+
+        const expiryDate = new Date();
+        const years = formData.plan === '5yr' ? 5 : formData.plan === '2yr' ? 2 : 1;
+        expiryDate.setFullYear(expiryDate.getFullYear() + years);
+
+        transaction.set(vehicleRef, {
+          id: vId,
+          ownerUid: ownerUid,
+          partnerUid: user.uid,
+          qrId: formData.selectedQrId,
+          vehicleNumber: (formData.vehicleNumber || '').trim().toUpperCase(),
+          model: formData.vehicleBrand,
+          color: formData.vehicleColor,
+          type: formData.vehicleType,
+          ownerName: formData.customerName,
+          phone: formData.phone,
+          whatsapp: formData.whatsapp,
+          emergencyContact: formData.phone,
+          planId: formData.plan,
+          subscriptionExpiry: expiryDate,
+          status: 'pending_verification',
+          isDeleted: false,
+          createdAt: serverTimestamp(),
+        });
+
+        transaction.update(qrRef, {
+          status: 'assigned',
+          mappedVehicleId: vId,
+          updatedAt: serverTimestamp()
+        });
+
+        const commRef = doc(collection(db, 'commissions'));
+        transaction.set(commRef, {
+          id: commRef.id,
+          partnerUid: user.uid,
+          vehicleId: vId,
+          amount: formData.plan === '5yr' ? 200 : 100,
+          status: 'pending',
+          createdAt: serverTimestamp(),
+        });
+      });
+
+      setRegisteredVehicleId(vId);
+      setSyntheticOwnerUid(ownerUid);
+      setStep(4);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err: any) {
+      console.error('Transaction Failed:', err);
+      setInternalError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -73,6 +212,28 @@ export default function PartnerOnboarding() {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (step !== 5 || !syntheticOwnerUid) return;
+
+    const q = query(
+      collection(db, 'payments'),
+      where('userId', '==', syntheticOwnerUid),
+      orderBy('createdAt', 'desc'),
+      limit(1)
+    );
+
+    const unsub = onSnapshot(q, (snap) => {
+      if (!snap.empty) {
+        const payment = snap.docs[0].data();
+        if (payment.status === 'verified') {
+          setPaymentVerified(true);
+        }
+      }
+    });
+
+    return () => unsub();
+  }, [step, syntheticOwnerUid]);
+
   if (authLoading) return (
     <div className="flex h-screen items-center justify-center bg-slate-50">
        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
@@ -80,10 +241,12 @@ export default function PartnerOnboarding() {
   );
 
   if (internalError) return (
-    <div className="p-8 text-red-600 font-bold bg-red-50 min-h-screen">
-      <h1>Critical Error Detected</h1>
-      <p>{internalError}</p>
-      <button onClick={() => window.location.reload()} className="mt-4 px-4 py-2 bg-red-600 text-white rounded">Reload Page</button>
+    <div className="p-8 text-red-600 font-bold bg-red-50 min-h-screen flex items-center justify-center">
+      <div className="max-w-md bg-white p-8 rounded-3xl shadow-xl text-center">
+        <h1 className="text-2xl font-black mb-4 uppercase tracking-tighter">System Error</h1>
+        <p className="text-slate-500 mb-6 font-medium">{internalError}</p>
+        <button onClick={() => window.location.reload()} className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg active:scale-95">Reload Page</button>
+      </div>
     </div>
   );
 
@@ -134,136 +297,6 @@ export default function PartnerOnboarding() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const completeMapping = async () => {
-    console.log('--- Registering Vehicle ---');
-    if (!user) {
-      setInternalError("Authentication Error: Please log in again.");
-      return;
-    }
-    
-    if (!formData.selectedQrId) {
-      setInternalError("Input Error: Please select an active QR code from your inventory.");
-      return;
-    }
-    
-    if (profile?.role !== 'partner') {
-      setInternalError("Permission Error: Your account must be a Partner to register vehicles.");
-      return;
-    }
-
-    setLoading(true);
-    console.log('Initiating Secure Transaction for QR:', formData.selectedQrId);
-
-    try {
-      console.log('Initiating Secure Transaction...');
-      await runTransaction(db, async (transaction) => {
-        console.log('Transaction started...');
-        const vehicleRef = doc(collection(db, 'vehicles'));
-        const qrRef = doc(db, 'qr_inventory', formData.selectedQrId);
-        
-        console.log('Fetching QR node status for:', formData.selectedQrId);
-        const qrSnap = await transaction.get(qrRef);
-        
-        if (!qrSnap.exists()) throw new Error("QR Code not found in the system. Please refresh and try again.");
-        const qrData = qrSnap.data() as QRInventory;
-        
-        if (qrData.partnerUid !== user.uid) {
-          throw new Error(`Permission Denied: This QR code belongs to a different partner (UID: ${qrData.partnerUid}).`);
-        }
-        if (qrData.status === 'assigned') {
-          throw new Error("Conflict: This QR code is already assigned to a vehicle.");
-        }
-
-        const expiryDate = new Date();
-        const years = formData.plan === '5yr' ? 5 : formData.plan === '2yr' ? 2 : 1;
-        expiryDate.setFullYear(expiryDate.getFullYear() + years);
-
-        const syntheticOwnerUid = 'PARTNER_REGISTERED_' + Math.random().toString(36).slice(2, 9);
-
-        console.log('Writing vehicle parameters...');
-        transaction.set(vehicleRef, {
-          id: vehicleRef.id,
-          ownerUid: syntheticOwnerUid,
-          partnerUid: user.uid,
-          qrId: formData.selectedQrId,
-          vehicleNumber: (formData.vehicleNumber || '').trim().toUpperCase(),
-          model: formData.vehicleBrand,
-          color: formData.vehicleColor,
-          type: formData.vehicleType,
-          ownerName: formData.customerName,
-          phone: formData.phone,
-          whatsapp: formData.whatsapp,
-          emergencyContact: formData.phone,
-          planId: formData.plan,
-          subscriptionExpiry: expiryDate,
-          status: 'active',
-          isDeleted: false,
-          createdAt: serverTimestamp(),
-        });
-
-        console.log('Updating inventory state...');
-        transaction.update(qrRef, {
-          status: 'assigned',
-          mappedVehicleId: vehicleRef.id,
-          updatedAt: serverTimestamp()
-        });
-
-        console.log('Recording commission log...');
-        const commRef = doc(collection(db, 'commissions'));
-        transaction.set(commRef, {
-          id: commRef.id,
-          partnerUid: user.uid,
-          vehicleId: vehicleRef.id,
-          amount: formData.plan === '5yr' ? 200 : 100,
-          status: 'pending',
-          createdAt: serverTimestamp(),
-        });
-
-        console.log('Recording payment revenue...');
-        const paymentRef = doc(collection(db, 'payments'));
-        transaction.set(paymentRef, {
-          id: paymentRef.id,
-          userId: syntheticOwnerUid,
-          vehicleId: vehicleRef.id,
-          amount: formData.plan === '5yr' ? 1000 : formData.plan === '2yr' ? 500 : 250,
-          status: 'success',
-          channel: 'partner',
-          partnerUid: user.uid,
-          createdAt: serverTimestamp(),
-        });
-
-        console.log('Generating system activation log...');
-        const logRef = doc(collection(db, 'logs'));
-        transaction.set(logRef, {
-          id: logRef.id,
-          action: 'activation',
-          partnerUid: user.uid,
-          vehicleId: vehicleRef.id,
-          timestamp: serverTimestamp(),
-          metadata: { 
-            planId: formData.plan,
-            qrId: formData.selectedQrId,
-            vehicleNumber: formData.vehicleNumber
-          }
-        });
-      });
-
-      console.log('Registration successful.');
-      setStep(4);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (err: any) {
-      console.error('Transaction Failed:', err);
-      // Detailed error for common Firestore issues
-      let friendlyMsg = err.message || 'Operation failed. Please try again.';
-      if (err.code === 'permission-denied') {
-        friendlyMsg = "Security Block: You don't have permission to write this data. Please check your role.";
-      }
-      setInternalError(`System Error: ${friendlyMsg}`);
-    } finally {
-      setLoading(false);
-    }
   };
 
   const downloadQR = () => {
@@ -332,8 +365,8 @@ export default function PartnerOnboarding() {
         </div>
 
         {/* Custom Progress Bar */}
-        <div className="grid grid-cols-3 gap-2 mb-12">
-           {[1, 2, 3].map(s => (
+        <div className="grid grid-cols-5 gap-2 mb-12">
+           {[1, 2, 3, 4, 5].map(s => (
              <div key={s} className={cn(
                "h-1.5 rounded-full transition-all duration-500",
                step >= s ? "bg-blue-600 shadow-sm" : "bg-slate-200"
@@ -567,16 +600,91 @@ export default function PartnerOnboarding() {
         )}
 
         {step === 4 && (
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
+             <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl border border-slate-200">
+                <div className="text-center mb-10">
+                   <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter mb-2">Manual Payment</h2>
+                   <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Customer must pay ₹{formData.plan === '5yr' ? 1000 : (formData.plan === '2yr' ? 500 : 250)}</p>
+                </div>
+
+                <div className="flex justify-center mb-8">
+                  <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 relative group">
+                    <img 
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=sudeepto84-4@okicici&pn=SafeQR&am=${formData.plan === '5yr' ? 1000 : (formData.plan === '2yr' ? 500 : 250)}&cu=INR`}
+                      alt="Payment QR"
+                      className="w-48 h-48 rounded-xl mix-blend-multiply transition-transform group-hover:scale-105"
+                    />
+                    <div className="mt-4 text-center">
+                       <p className="text-[10px] font-black font-mono text-slate-400 uppercase tracking-widest">sudeepto84-4@okicici</p>
+                    </div>
+                  </div>
+                </div>
+
+                {apiError && (
+                  <div className="bg-red-50 border border-red-100 text-red-600 p-4 rounded-xl text-[10px] font-black uppercase tracking-widest mb-6 text-center">
+                    {apiError}
+                  </div>
+                )}
+
+                <div className="space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">UTR / Transaction ID</label>
+                    <input 
+                      value={transactionId}
+                      onChange={(e) => setTransactionId(e.target.value)}
+                      placeholder="ENTER REFERENCE NO."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl py-4 px-5 focus:ring-2 focus:ring-blue-100 outline-none font-bold text-slate-900"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Payment Proof</label>
+                    <label className="cursor-pointer flex items-center justify-center gap-3 py-4 bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl hover:border-blue-600 transition-all text-[10px] font-black uppercase tracking-widest">
+                       <Camera className="w-5 h-5 text-slate-400" />
+                       {screenshot ? screenshot.name : "Capture Screenshot"}
+                       <input 
+                         type="file" 
+                         accept="image/*" 
+                         className="hidden" 
+                         onChange={(e) => setScreenshot(e.target.files?.[0] || null)} 
+                       />
+                    </label>
+                  </div>
+
+                  <button 
+                    onClick={submitPartnerPayment}
+                    disabled={loading || !transactionId || !screenshot}
+                    className="w-full py-5 bg-blue-600 text-white rounded-xl text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-blue-100 flex items-center justify-center gap-3 hover:bg-blue-700 disabled:opacity-50 active:scale-95 transition-all"
+                  >
+                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><ShieldCheck className="w-5 h-5" /> Submit for Verification</>}
+                  </button>
+                </div>
+             </div>
+          </motion.div>
+        )}
+
+        {step === 5 && (
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center">
              <div className="bg-white p-12 rounded-[2.5rem] shadow-2xl border border-slate-200 flex flex-col items-center max-w-lg mx-auto">
-                <div className="w-24 h-24 bg-green-50 rounded-full flex items-center justify-center mb-8 border border-green-100">
-                   <ShieldCheck className="w-12 h-12 text-green-600" />
+                <div className={cn(
+                  "w-24 h-24 rounded-full flex items-center justify-center mb-8 border transition-all duration-1000",
+                  paymentVerified ? "bg-green-50 border-green-100" : "bg-blue-50 border-blue-100 animate-pulse"
+                )}>
+                   {paymentVerified ? <ShieldCheck className="w-12 h-12 text-green-600" /> : <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />}
                 </div>
-                <h2 className="text-4xl font-black text-slate-900 uppercase tracking-tighter mb-2">Registration Successful</h2>
-                <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-10">Digital Sticker Node is now Live</p>
+                
+                <h2 className="text-4xl font-black text-slate-900 uppercase tracking-tighter mb-2 whitespace-nowrap">
+                  {paymentVerified ? "Node Activated" : "Validating Proof"}
+                </h2>
+                <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-10 leading-relaxed">
+                  {paymentVerified ? "The Digital Sticker is now globally discoverable." : "Admin is verifying the payment receipt for the mapping."}
+                </p>
                 
                 <div className="w-full bg-slate-50 rounded-3xl p-8 border border-slate-100 mb-10 relative group">
-                   <div className="bg-white p-6 rounded-2xl shadow-sm inline-block border border-slate-200 mb-6 transition-transform group-hover:scale-105 duration-500">
+                   <div className={cn(
+                     "bg-white p-6 rounded-2xl shadow-sm inline-block border border-slate-200 mb-6 transition-all duration-500",
+                     !paymentVerified && "opacity-30 grayscale blur-[4px]"
+                   )}>
                       <QRCodeSVG 
                         id="success-qr"
                         value={`${window.location.origin}/s/${formData.selectedQrId}`} 
@@ -586,13 +694,15 @@ export default function PartnerOnboarding() {
                    </div>
                    <p className="text-[10px] font-black font-mono text-slate-400 uppercase tracking-[0.4em] mb-6">NODE ID: {formData.selectedQrId}</p>
                    
-                   <button 
-                    onClick={downloadQR}
-                    className="flex items-center gap-2 mx-auto px-8 py-3 bg-slate-900 text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all hover:shadow-lg shadow-blue-200 active:scale-95"
-                   >
-                     <Download className="w-4 h-4" />
-                     Download Hardcopy (PNG)
-                   </button>
+                   {paymentVerified && (
+                     <button 
+                      onClick={downloadQR}
+                      className="flex items-center gap-2 mx-auto px-8 py-3 bg-slate-900 text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all hover:shadow-lg shadow-blue-200 active:scale-95"
+                     >
+                       <Download className="w-4 h-4" />
+                       Download PNG
+                     </button>
+                   )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
@@ -603,20 +713,23 @@ export default function PartnerOnboarding() {
                          phone: '',
                          whatsapp: '',
                          vehicleNumber: '',
+                         vehicleType: 'car',
+                         vehicleBrand: '',
+                         vehicleColor: '',
                          selectedQrId: '',
                          plan: '2yr'
                        });
                        setStep(1);
                     }}
-                    className="py-4 bg-slate-100 text-slate-900 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 shadow-sm"
+                    className="py-4 bg-slate-100 text-slate-900 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 shadow-sm transition-all"
                    >
-                     New Registration
+                     New Map
                    </button>
                    <button 
                     onClick={() => navigate('/dashboard')}
-                    className="py-4 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-xl"
+                    className="py-4 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 shadow-xl transition-all"
                    >
-                     Go to Dashboard
+                     Vault
                    </button>
                 </div>
              </div>

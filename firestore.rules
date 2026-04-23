@@ -10,18 +10,48 @@ service cloud.firestore {
 
     // HELPER PRIMITIVES
     function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
     function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
 
-    // ROLE CHECKS (Sources of Truth)
+    // ROLE CHECKS (Sources of Truth - requires DB read)
     function isAdmin() { 
-      return isSignedIn() && 
+      return isVerified() && 
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super-admin']; 
     }
     function isPartner() { 
-      return isSignedIn() && 
+      return isVerified() && 
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'partner'; 
+    }
+
+    // --------------------------------------------------
+    // VALIDATION HELPERS
+    // --------------------------------------------------
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['email', 'role', 'displayName']) &&
+             data.email is string && data.email.size() <= 100 &&
+             data.role in ['user', 'partner', 'admin'] &&
+             data.displayName is string && data.displayName.size() <= 100;
+    }
+
+    function isValidVehicle(data) {
+      return data.keys().hasAll(['vehicleNumber', 'ownerName', 'phone', 'status', 'createdAt']) &&
+             data.vehicleNumber is string && data.vehicleNumber.size() <= 64 &&
+             data.ownerName is string && data.ownerName.size() <= 128 &&
+             data.phone is string && data.phone.size() <= 20 &&
+             data.status in ['pending_verification', 'active', 'payment_rejected', 'expired'] &&
+             data.createdAt == request.time;
+    }
+
+    function isValidPayment(data) {
+      return data.keys().hasAll(['transactionId', 'amount', 'userId', 'status', 'createdAt']) &&
+             data.transactionId is string && data.transactionId.size() <= 128 &&
+             data.amount is number && data.amount > 0 &&
+             data.status in ['pending', 'verified', 'rejected'] &&
+             data.createdAt == request.time;
     }
 
     // --------------------------------------------------
@@ -29,48 +59,91 @@ service cloud.firestore {
     // --------------------------------------------------
     match /users/{userId} {
       allow get: if isSignedIn();
-      allow list: if isSignedIn(); 
-      allow create: if isSignedIn() && isOwner(userId);
-      allow update: if isAdmin() || (isSignedIn() && isOwner(userId) && (!("role" in incoming()) || incoming().role == existing().role));
+      allow list: if isAdmin(); 
+      allow create: if isVerified() && isOwner(userId) && isValidUser(incoming());
+      allow update: if (isAdmin() || (isVerified() && isOwner(userId))) && 
+                    // Protect immutable fields and roles
+                    (isAdmin() || (incoming().role == existing().role && incoming().email == existing().email));
       allow delete: if isAdmin();
     }
 
     // --------------------------------------------------
-    // GENERIC COLLECTIONS: HIGH PERFORMANCE READS
+    // COLLECTION: QR_INVENTORY
     // --------------------------------------------------
-    // In this simulation environment, we prioritize zero-latency real-time updates.
-    // We rely on application-level filtering (where clauses) for security 
-    // and strict write rules for integrity.
-    
     match /qr_inventory/{qrId} {
       allow read: if true;
       allow create: if isAdmin();
-      allow update: if (isSignedIn() && (existing().partnerUid == request.auth.uid || isAdmin()));
+      allow update: if (isVerified() && (
+        isAdmin() || 
+        // Partner can update status to 'assigned' or 'active' for their own stock
+        (isPartner() && existing().partnerUid == request.auth.uid && (
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'mappedVehicleId', 'updatedAt'])
+        ))
+      ));
       allow delete: if isAdmin();
     }
 
+    // --------------------------------------------------
+    // COLLECTION: VEHICLES
+    // --------------------------------------------------
     match /vehicles/{vehicleId} {
-      allow read: if true;
-      allow create: if isSignedIn();
-      allow update: if (isSignedIn() && (existing().ownerUid == request.auth.uid || existing().partnerUid == request.auth.uid || isAdmin()));
+      allow get: if (resource.data.status == 'active') || 
+                (isSignedIn() && (resource.data.ownerUid == request.auth.uid || resource.data.partnerUid == request.auth.uid || isAdmin()));
+      allow list: if isSignedIn() && (
+        isAdmin() || 
+        resource.data.ownerUid == request.auth.uid || 
+        resource.data.partnerUid == request.auth.uid
+      );
+      allow create: if isVerified() && 
+                    isValidId(vehicleId) &&
+                    isValidVehicle(incoming()) && (
+                      isPartner() || 
+                      incoming().ownerUid == request.auth.uid
+                    );
+      allow update: if (
+        isAdmin() ||
+        (isVerified() && (existing().ownerUid == request.auth.uid || existing().partnerUid == request.auth.uid) && (
+           incoming().ownerUid == existing().ownerUid &&
+           incoming().partnerUid == existing().partnerUid &&
+           incoming().diff(existing()).affectedKeys().hasOnly(['phone', 'whatsapp', 'emergencyContact', 'updatedAt', 'status', 'qrId'])
+        ))
+      );
       allow delete: if isAdmin();
     }
 
-    match /logs/{logId} {
-      allow create, read, list: if true;
-      allow delete: if isAdmin();
-    }
-
+    // --------------------------------------------------
+    // COLLECTION: PAYMENTS
+    // --------------------------------------------------
     match /payments/{paymentId} {
-      allow read, list: if isSignedIn();
-      allow create: if isSignedIn();
+      allow get: if isSignedIn() && (isOwner(existing().userId) || isAdmin() || isPartner());
+      allow list: if isSignedIn() && (isAdmin() || isPartner() || isOwner(resource.data.userId));
+      allow create: if isVerified() && 
+                    isValidId(paymentId) &&
+                    isValidPayment(incoming()) && (
+                      incoming().userId == request.auth.uid || isPartner()
+                    ) &&
+                    paymentId == incoming().transactionId;
+      allow update: if isAdmin(); 
       allow delete: if isAdmin();
     }
 
+    // --------------------------------------------------
+    // COLLECTION: COMMISSIONS
+    // --------------------------------------------------
     match /commissions/{commissionId} {
-      allow read, list: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isAdmin();
+      allow get: if isSignedIn() && (isOwner(existing().partnerUid) || isAdmin());
+      allow list: if isSignedIn() && (isOwner(resource.data.partnerUid) || isAdmin());
+      allow create: if isVerified() && isPartner(); 
+      allow update: if isAdmin(); 
+      allow delete: if isAdmin();
+    }
+
+    // --------------------------------------------------
+    // COLLECTION: LOGS
+    // --------------------------------------------------
+    match /logs/{logId} {
+      allow create: if true; 
+      allow read, list: if isAdmin();
       allow delete: if isAdmin();
     }
   }

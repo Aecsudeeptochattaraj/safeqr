@@ -9,10 +9,12 @@ const viewConfig = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'insights', label: 'Insights', icon: Activity },
   { id: 'financials', label: 'Financials', icon: Coins },
+  { id: 'payments', label: 'Manual Payments', icon: ShieldCheck },
   { id: 'supply_chain', label: 'Supply Chain', icon: Layers },
   { id: 'audit_logs', label: 'Audit Logs', icon: List },
   { id: 'qr_management', label: 'QR Management', icon: QrCode },
   { id: 'fleet', label: 'Fleet', icon: Car },
+  { id: 'projection', label: '5Y Projection', icon: TrendingUp },
   { id: 'users', label: 'Users', icon: Users },
   { id: 'danger_zone', label: 'Danger Zone', icon: AlertTriangle },
 ] as const;
@@ -25,7 +27,7 @@ import {
   BarChart, Bar, Cell, Legend
 } from 'recharts';
 import { format, subDays, startOfDay, endOfDay, isWithinInterval, startOfWeek, startOfMonth } from 'date-fns';
-import { InsightsDashboard, LiveActivity, ScanTrends, AuditLogs, InventorySupplyChain, SmartInsights, FleetManagement, FinancialsManagement } from './InsightsComponents';
+import { InsightsDashboard, LiveActivity, ScanTrends, AuditLogs, InventorySupplyChain, SmartInsights, FleetManagement, FinancialsManagement, FutureProjection, PaymentVerificationModule } from './InsightsComponents';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -60,7 +62,7 @@ export default function AdminDashboard() {
     scansMonth: 0,
     scanTrend: 0 
   });
-  const [view, setView] = useState<'overview' | 'insights' | 'supply_chain' | 'audit_logs' | 'qr_management' | 'fleet' | 'users' | 'financials'>('overview');
+  const [view, setView] = useState<'overview' | 'insights' | 'supply_chain' | 'audit_logs' | 'qr_management' | 'fleet' | 'users' | 'financials' | 'projection' | 'payments'>('overview');
   const [activityLogs, setActivityLogs] = useState<LogEntry[]>([]);
   const [allLogs, setAllLogs] = useState<LogEntry[]>([]);
   const [paymentsData, setPaymentsData] = useState<any[]>([]);
@@ -372,10 +374,12 @@ export default function AdminDashboard() {
 
       {view === 'insights' && <InsightsDashboard stats={stats} rawData={rawData} logs={allLogs} timeRange={timeRange} />}
       {view === 'financials' && <FinancialsManagement payments={paymentsData} commissions={commissionsData} users={rawData.allUsers} cn={cn} vehicles={rawData.vehicles} />}
+      {view === 'payments' && <PaymentVerificationModule payments={paymentsData} users={rawData.allUsers} />}
       {view === 'supply_chain' && <InventorySupplyChain rawData={rawData} logs={allLogs} />}
       {view === 'audit_logs' && <AuditLogs logs={allLogs} partners={rawData.partners} />}
       {view === 'qr_management' && <QRManagement />}
       {view === 'fleet' && <FleetManagement vehicles={rawData.vehicles} payments={paymentsData} users={rawData.allUsers} cn={cn} />}
+      {view === 'projection' && <FutureProjection />}
       {view === 'users' && <UserManagement />}
       {view === 'danger_zone' && <DangerZone />}
     </div>
