@@ -21,70 +21,57 @@ async function startServer() {
 
   // 1. GLOBAL REQUEST TRACER (VERY TOP)
   app.use((req, res, next) => {
-    const timestamp = new Date().toISOString();
     const cleanUrl = req.url.split('?')[0];
-    console.log(`[SYS-TRACE] [${req.method}] ${cleanUrl} (Original: ${req.originalUrl})`);
+    if (cleanUrl.startsWith('/api/')) {
+       console.log(`[API-CRITICAL-TRACE] [${req.method}] ${cleanUrl}`);
+    }
     next();
   });
 
-  // 2. HARDENED API LAYER (BEFORE VITE)
-  const api = express.Router();
-  
-  api.use(express.json()); // Only for API routes
-
-  api.get('/test', (req, res) => {
-    console.log("[API-PING] Test OK");
-    res.json({ live: true, node: process.version });
-  });
-
-  api.post('/submitPayment', (req, res) => {
-    console.log("[API-FLOW] submitPayment Start");
+  // 2. HARDENED API LAYER (MOUNTED DIRECTLY ON APP FOR MAX PRIORITY)
+  app.post('/api/submitPayment', (req, res) => {
+    console.log("[SECURITY-NODE] Incoming Submission...");
     upload.single('screenshot')(req, res, async (multerErr) => {
       if (multerErr) {
-        console.error("[API-FLOW] Multer Err:", multerErr);
-        return res.status(400).json({ error: 'FILE_FAULT', details: multerErr.message });
+        console.error("[SECURITY-NODE] Multer Fault:", multerErr);
+        return res.status(400).json({ error: 'FILE_UPLOAD_FAILED', message: multerErr.message });
       }
 
       try {
         const { transactionId, userId } = req.body;
         if (!transactionId || !userId || !req.file) {
-          console.warn("[API-FLOW] Validation Failed", { transactionId, userId, hasFile: !!req.file });
-          return res.status(400).json({ error: 'INCOMPLETE_PAYLOAD', message: 'Missing fields' });
+          console.warn("[SECURITY-NODE] Data check failed", { transactionId, userId, file: !!req.file });
+          return res.status(400).json({ error: 'DATA_MALFORMED', message: 'All fields + Screenshot required' });
         }
 
-        console.log(`[API-FLOW] Processing image (${req.file.size} bytes)`);
+        console.log(`[SECURITY-NODE] Scrubbing image: ${req.file.size} bytes`);
         
-        let scrubbedData = '';
+        let processedData = '';
         try {
           const buffer = await sharp(req.file.buffer)
             .resize(800, 800, { fit: 'inside' })
             .jpeg({ quality: 80 })
             .toBuffer();
-          scrubbedData = `data:image/jpeg;base64,${buffer.toString('base64')}`;
+          processedData = `data:image/jpeg;base64,${buffer.toString('base64')}`;
         } catch (e) {
-          console.warn("[API-FLOW] Sharp fallback");
-          scrubbedData = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+          console.warn("[SECURITY-NODE] Process failure, fallback to raw");
+          processedData = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
         }
 
+        console.log("[SECURITY-NODE] Success");
         return res.status(200).json({
           success: true,
-          scrubbedImage: scrubbedData,
+          scrubbedImage: processedData,
           transactionId
         });
-      } catch (fataErr: any) {
-        console.error("[API-FLOW] Fatal:", fataErr);
-        return res.status(500).json({ error: 'INTERNAL_SECURITY_FAULT', details: fataErr.message });
+      } catch (fatal: any) {
+        console.error("[SECURITY-NODE] Critical Error:", fatal);
+        return res.status(500).json({ error: 'NODE_FAILURE', details: fatal.message });
       }
     });
   });
 
-  // Catch unmatched API calls with JSON 404
-  api.all('*', (req, res) => {
-    console.warn(`[API-MISS] ${req.method} ${req.url}`);
-    res.status(404).json({ error: 'API_ENDPOINT_NOT_FOUND' });
-  });
-
-  app.use('/api', api);
+  app.get('/api/test', (req, res) => res.json({ status: 'active', ts: Date.now() }));
 
   // 3. VITE / SPA FALLBACK (AFTER API)
   if (process.env.NODE_ENV !== "production") {
@@ -94,6 +81,9 @@ async function startServer() {
         hmr: false 
       },
       appType: "spa",
+      optimizeDeps: {
+        include: []
+      }
     });
     app.use(vite.middlewares);
   } else {

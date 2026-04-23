@@ -70,13 +70,19 @@ export default function PartnerOnboarding() {
       formDataToSend.append('userId', syntheticOwnerUid);
       formDataToSend.append('amount', (formData.plan === '5yr' ? 1000 : (formData.plan === '2yr' ? 500 : 250)).toString());
 
-      const response = await fetch('/api/submitPayment', {
+      console.log(`[FRONTEND-TRACE] Dispatching Partner POST to /api/submitPayment`);
+      const response = await fetch(`/api/submitPayment?v=${Date.now()}`, {
         method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+        },
         body: formDataToSend
       });
 
+      console.log(`[FRONTEND-TRACE] Partner Response: ${response.status}`);
       let data: any;
       const responseText = await response.text();
+      console.log(`[FRONTEND-TRACE] Partner Raw Payload: ${responseText.slice(0, 100)}`);
       try {
         data = JSON.parse(responseText);
       } catch (parseErr) {

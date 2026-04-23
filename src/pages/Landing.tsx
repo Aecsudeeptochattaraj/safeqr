@@ -144,6 +144,61 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* Gated Communities Section - Urban Solutions */}
+      <section className="py-32 bg-slate-50 border-b border-line">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex flex-col lg:flex-row gap-20 items-center">
+            <div className="flex-1 space-y-10">
+              <div>
+                <p className="text-blue-600 text-[11px] font-black uppercase tracking-[0.4em] mb-4">Ecosystem Focus</p>
+                <h2 className="text-5xl lg:text-7xl font-black text-slate-900 leading-[0.9] tracking-tighter uppercase">
+                  Tailored for <br />Gated Communities.
+                </h2>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                {[
+                  { title: "Wrong Slot Alerts", desc: "Private resident-to-resident parking notifications without guard drama." },
+                  { title: "Delivery Blockage", desc: "Instantly alert courier vans blocking your exit path in narrow lanes." },
+                  { title: "Pet/Child Safety", desc: "Emergency alerts if pets are spotted near your vehicle in common zones." },
+                  { title: "Maintenance Sync", desc: "Washers and technical staff can notify owners before moving cars." }
+                ].map((item, idx) => (
+                  <div key={idx} className="space-y-3">
+                    <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600">
+                      <Lock className="w-4 h-4" />
+                    </div>
+                    <h4 className="text-sm font-black uppercase text-slate-900 tracking-tight">{item.title}</h4>
+                    <p className="text-xs text-slate-500 font-medium leading-relaxed">{item.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex-1 relative">
+               <div className="absolute -inset-4 bg-gradient-to-tr from-blue-600/20 to-indigo-600/20 blur-3xl rounded-[48px]" />
+               <div className="relative bg-white rounded-[40px] p-4 shadow-2xl border border-slate-200">
+                  <img 
+                    src="https://images.unsplash.com/photo-1545127398-14699f92334b?q=80&w=2670&auto=format&fit=crop" 
+                    alt="Apartment Parking" 
+                    className="w-full h-[400px] object-cover rounded-[32px]"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute -bottom-10 -right-10 bg-slate-900 text-white p-8 rounded-3xl max-w-xs shadow-2xl hidden md:block border border-slate-700">
+                     <p className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-400 mb-2">Apartment Admin View</p>
+                     <p className="text-sm font-bold leading-relaxed italic opacity-80">
+                       "Since deploying SafeQR, our security gate calls have decreased by 40% as residents resolve parking issues privately."
+                     </p>
+                     <div className="mt-4 flex items-center gap-3">
+                        <div className="w-6 h-6 rounded-full bg-slate-700" />
+                        <span className="text-[9px] font-black uppercase text-slate-300">Society Management Commitee</span>
+                     </div>
+                  </div>
+               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* CTA Section - Prestige Theme */}
       <section className="py-24 px-6">
         <div className="max-w-7xl mx-auto">

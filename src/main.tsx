@@ -5,12 +5,25 @@ import './index.css';
 
 // Suppress benign Vite WebSocket error logs in the dev environment
 if (typeof window !== 'undefined') {
+  const isViteSocketError = (err: any) => 
+    err?.message?.includes('WebSocket') || 
+    err?.includes?.('WebSocket') ||
+    err?.message?.includes('vite') ||
+    err?.target?.url?.includes('vite');
+
   window.addEventListener('unhandledrejection', (event) => {
-    if (event.reason?.message?.includes('WebSocket') || event.reason?.includes?.('WebSocket')) {
+    if (isViteSocketError(event.reason)) {
       event.stopImmediatePropagation();
       event.preventDefault();
     }
   });
+
+  window.addEventListener('error', (event) => {
+    if (isViteSocketError(event.error) || isViteSocketError(event.message)) {
+      event.stopImmediatePropagation();
+      event.preventDefault();
+    }
+  }, true);
 }
 
 createRoot(document.getElementById('root')!).render(

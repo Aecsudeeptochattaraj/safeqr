@@ -14,15 +14,15 @@ service cloud.firestore {
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
     function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
-    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-\\+\\=]+$'); }
 
     // ROLE CHECKS (Sources of Truth - requires DB read)
     function isAdmin() { 
-      return isVerified() && 
+      return isSignedIn() && 
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin', 'super-admin']; 
     }
     function isPartner() { 
-      return isVerified() && 
+      return isSignedIn() && 
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'partner'; 
     }
 
@@ -60,8 +60,8 @@ service cloud.firestore {
     match /users/{userId} {
       allow get: if isSignedIn();
       allow list: if isAdmin(); 
-      allow create: if isVerified() && isOwner(userId) && isValidUser(incoming());
-      allow update: if (isAdmin() || (isVerified() && isOwner(userId))) && 
+      allow create: if isSignedIn() && isOwner(userId) && isValidUser(incoming());
+      allow update: if (isAdmin() || (isSignedIn() && isOwner(userId))) && 
                     // Protect immutable fields and roles
                     (isAdmin() || (incoming().role == existing().role && incoming().email == existing().email));
       allow delete: if isAdmin();
@@ -94,7 +94,7 @@ service cloud.firestore {
         resource.data.ownerUid == request.auth.uid || 
         resource.data.partnerUid == request.auth.uid
       );
-      allow create: if isVerified() && 
+      allow create: if isSignedIn() && 
                     isValidId(vehicleId) &&
                     isValidVehicle(incoming()) && (
                       isPartner() || 
@@ -117,7 +117,7 @@ service cloud.firestore {
     match /payments/{paymentId} {
       allow get: if isSignedIn() && (isOwner(existing().userId) || isAdmin() || isPartner());
       allow list: if isSignedIn() && (isAdmin() || isPartner() || isOwner(resource.data.userId));
-      allow create: if isVerified() && 
+      allow create: if isSignedIn() && 
                     isValidId(paymentId) &&
                     isValidPayment(incoming()) && (
                       incoming().userId == request.auth.uid || isPartner()

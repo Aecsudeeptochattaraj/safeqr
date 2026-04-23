@@ -97,13 +97,19 @@ export default function RegisterVehicle() {
       formDataToSend.append('screenshot', screenshot);
 
       // Hit our backend for metadata scrubbing and replay attack prevention
-      const response = await fetch('/api/submitPayment', {
+      console.log(`[FRONTEND-TRACE] Dispatching POST to /api/submitPayment`);
+      const response = await fetch(`/api/submitPayment?v=${Date.now()}`, {
         method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+        },
         body: formDataToSend
       });
 
+      console.log(`[FRONTEND-TRACE] Response received: ${response.status} ${response.statusText}`);
       let data: any;
       const responseText = await response.text();
+      console.log(`[FRONTEND-TRACE] Raw Payload (first 100 chars): ${responseText.slice(0, 100)}`);
       try {
         data = JSON.parse(responseText);
       } catch (parseErr) {
