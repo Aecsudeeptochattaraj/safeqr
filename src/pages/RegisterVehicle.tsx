@@ -4,6 +4,7 @@ import { motion } from 'motion/react';
 import { Car, Smartphone, MessageCircle, CreditCard, CheckCircle, ShieldCheck, Camera, Sparkles, Loader2, RefreshCw, Download } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { db } from '../lib/firebase';
+import { processImageClientSide } from '../lib/imageProcessor';
 import { GoogleGenAI } from '@google/genai';
 import { doc, setDoc, serverTimestamp, collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { clsx, type ClassValue } from 'clsx';
@@ -97,30 +98,8 @@ export default function RegisterVehicle() {
       formDataToSend.append('screenshot', screenshot);
 
       // Hit our backend for metadata scrubbing and replay attack prevention
-      console.log(`[FRONTEND-TRACE] Dispatching POST to /api/submitPayment`);
-      const response = await fetch(`/api/submitPayment?v=${Date.now()}`, {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-        },
-        body: formDataToSend
-      });
-
-      console.log(`[FRONTEND-TRACE] Response received: ${response.status} ${response.statusText}`);
-      let data: any;
-      const responseText = await response.text();
-      console.log(`[FRONTEND-TRACE] Raw Payload (first 100 chars): ${responseText.slice(0, 100)}`);
-      try {
-        data = JSON.parse(responseText);
-      } catch (parseErr) {
-        console.error("Failed to parse API response as JSON:", responseText.slice(0, 500));
-        throw new Error(`Server returned invalid response from security node (${response.status}). Portal access may be restricted.`);
-      }
-      
-      if (!response.ok) {
-        const errorMsg = data.details ? `${data.error} (${data.details})` : (data.error || 'Payment submission failed.');
-        throw new Error(errorMsg);
-      }
+      console.log(`[FRONTEND-TRACE] Processing image locally for static Vercel deployment compatibility`);
+      const scrubbedImage = await processImageClientSide(screenshot);
 
       // Backend returns the scrubbed metadata-free image.
       const vehicleRef = doc(collection(db, 'vehicles'));
@@ -145,7 +124,7 @@ export default function RegisterVehicle() {
         transactionId,
         amount: formData.planId === '5yr' ? 1000 : 500,
         status: 'pending',
-        scrubbedScreenshotUrl: data.scrubbedImage, // Stored safely
+        scrubbedScreenshotUrl: scrubbedImage, // Stored safely
         createdAt: serverTimestamp(),
       });
 

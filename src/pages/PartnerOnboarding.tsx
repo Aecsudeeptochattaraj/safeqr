@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { db } from '../lib/firebase';
+import { processImageClientSide } from '../lib/imageProcessor';
 import { GoogleGenAI } from '@google/genai';
 import { QRCodeSVG } from 'qrcode.react';
 import { 
@@ -71,29 +72,7 @@ export default function PartnerOnboarding() {
       formDataToSend.append('amount', (formData.plan === '5yr' ? 1000 : (formData.plan === '2yr' ? 500 : 250)).toString());
 
       console.log(`[FRONTEND-TRACE] Dispatching Partner POST to /api/submitPayment`);
-      const response = await fetch(`/api/submitPayment?v=${Date.now()}`, {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-        },
-        body: formDataToSend
-      });
-
-      console.log(`[FRONTEND-TRACE] Partner Response: ${response.status}`);
-      let data: any;
-      const responseText = await response.text();
-      console.log(`[FRONTEND-TRACE] Partner Raw Payload: ${responseText.slice(0, 100)}`);
-      try {
-        data = JSON.parse(responseText);
-      } catch (parseErr) {
-        console.error("Failed to parse API response as JSON:", responseText.slice(0, 500));
-        throw new Error(`Server returned non-JSON response (${response.status}). This often happens if the backend is down or unreachable.`);
-      }
-      
-      if (!response.ok) {
-        const errorMsg = data.details ? `${data.error} (${data.details})` : (data.error || 'Verification submission failed.');
-        throw new Error(errorMsg);
-      }
+      const scrubbedImage = await processImageClientSide(screenshot);
 
       const paymentRef = doc(db, 'payments', transactionId);
       await setDoc(paymentRef, {
@@ -105,7 +84,7 @@ export default function PartnerOnboarding() {
         status: 'pending',
         channel: 'partner',
         partnerUid: user?.uid,
-        scrubbedScreenshotUrl: data.scrubbedImage,
+        scrubbedScreenshotUrl: scrubbedImage,
         createdAt: serverTimestamp(),
       });
 
