@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
 import { db } from '../../lib/firebase';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, deleteDoc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../../hooks/useAuth';
 import { Vehicle, QRInventory } from '../../types';
-import { Coins, Plus, Users, Package, QrCode, Download, Loader2, Car, Printer } from 'lucide-react';
+import { Coins, Plus, Users, Package, QrCode, Download, Loader2, Car, Printer, Trash2, ShieldX } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeCanvas } from 'qrcode.react';
 import JSZip from 'jszip';
+import { drawBrandedQR } from '../../lib/qrBranding';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -37,6 +38,41 @@ export default function PartnerDashboard() {
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
+  const terminateRegistration = async (vehicleId: string, qrId?: string) => {
+    if (!window.confirm('TERMINATE this node mapping? This will deactivate the tag for the customer. This action is irreversible.')) return;
+    try {
+      // 1. Delete vehicle record
+      await deleteDoc(doc(db, 'vehicles', vehicleId));
+      
+      // 2. Reset QR inventory item if it exists
+      if (qrId) {
+        await updateDoc(doc(db, 'qr_inventory', qrId), {
+          status: 'available',
+          mappedVehicleId: null
+        });
+      }
+      
+      // 3. Log
+      await addDoc(collection(db, 'logs'), {
+        action: 'termination',
+        vehicleId,
+        timestamp: serverTimestamp(),
+        metadata: { qrId, reason: 'Partner Manual Termination' }
+      });
+    } catch (err: any) {
+      alert(`Termination failed: ${err.message}`);
+    }
+  };
+
+  const deleteStockItem = async (id: string) => {
+    if (!window.confirm('Remove this node from your inventory vault? It will be deleted from the system.')) return;
+    try {
+       await deleteDoc(doc(db, 'qr_inventory', id));
+    } catch (err: any) {
+       alert(`Delete failed: ${err.message}`);
+    }
+  };
+
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
@@ -46,32 +82,37 @@ export default function PartnerDashboard() {
     else setSelectedIds(myStock.filter(s => s.status === 'available').map(i => i.id));
   };
 
-  const executePrint = () => {
+  const executePrint = async () => {
     if (selectedIds.length === 0) {
       console.warn("Print skipped: Select nodes to print first.");
       return;
     }
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
-    const brand = "SAFE-TAG";
-    const cardsHtml = selectedIds.map(id => {
-      const canvas = document.getElementById(`qr-src-${id}`)?.querySelector('canvas');
-      const dataUrl = canvas?.toDataURL("image/png");
-      return `
-        <div style="width: 200px; padding: 20px; border: 1px solid #eee; margin: 10px; display: inline-block; text-align: center; font-family: sans-serif; page-break-inside: avoid; border-radius: 12px; background: #fff;">
-          <div style="font-size: 14px; font-weight: 900; letter-spacing: 2px; margin-bottom: 10px;">${brand}</div>
-          <img src="${dataUrl}" style="width: 160px; height: 160px; display: block; margin: 0 auto;" />
-          <div style="margin-top: 10px; font-family: monospace; font-size: 18px; font-weight: 900; color: #3b82f6;">${id}</div>
-          <div style="font-size: 8px; font-weight: bold; color: #94a3b8; margin-top: 5px; text-transform: uppercase;">Ready to Map</div>
-        </div>
-      `;
-    }).join('');
+    
+    const brand = "MyParkSaathi";
+    const cards = [];
+    
+    for (const id of selectedIds) {
+      const canvas = document.createElement('canvas');
+      const qrSrc = document.getElementById(`qr-src-${id}`)?.querySelector('canvas');
+      if (qrSrc) {
+        await drawBrandedQR(canvas, id, qrSrc);
+        const dataUrl = canvas.toDataURL("image/png");
+        cards.push(`
+          <div style="width: 450px; padding: 10px; border: 1px solid #eee; margin: 5px; display: inline-block; page-break-inside: avoid; border-radius: 12px; background: #fff; overflow: hidden;">
+            <img src="${dataUrl}" style="width: 100%; display: block;" />
+          </div>
+        `);
+      }
+    }
+
     printWindow.document.write(`
       <html>
         <head><title>Print Stickers - ${brand}</title></head>
-        <body style="margin:0; padding: 20px; background: #f8fafc; text-align: center;">
-          <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;">${cardsHtml}</div>
-          <script>window.onload = () => { setTimeout(() => { window.print(); window.close(); }, 700); };</script>
+        <body style="margin:0; padding: 10px; background: #f8fafc; text-align: center;">
+          <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 5px;">${cards.join('')}</div>
+          <script>window.onload = () => { setTimeout(() => { window.print(); window.close(); }, 1000); };</script>
         </body>
       </html>
     `);
@@ -121,45 +162,17 @@ export default function PartnerDashboard() {
     try {
       const zip = new JSZip();
       const folder = zip.folder("MY_READY_STICKERS");
-      const brand = "SAFE-TAG";
       
       for (const item of available) {
         const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        if (!ctx) continue;
-
-        const size = 600;
-        const padding = 60;
-        const header = 120;
-        const footer = 100;
-
-        canvas.width = size + (padding * 2);
-        canvas.height = size + header + footer + (padding * 2);
-
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        ctx.fillStyle = '#1E293B';
-        ctx.font = 'black 60px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(brand, canvas.width / 2, padding + 70);
-
-        ctx.fillStyle = '#64748B';
-        ctx.font = 'bold 24px sans-serif';
-        ctx.fillText("SMART VEHICLE TAG", canvas.width / 2, padding + 110);
-
         const qrSrc = document.getElementById(`qr-src-${item.id}`)?.querySelector('canvas');
+        
         if (qrSrc) {
-          ctx.drawImage(qrSrc, padding, padding + header, size, size);
-        }
-
-        ctx.fillStyle = '#3B82F6';
-        ctx.font = '900 45px monospace';
-        ctx.fillText(item.id, canvas.width / 2, canvas.height - padding - 20);
-
-        const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
-        if (blob && folder) {
-          folder.file(`${brand}_${item.id}.png`, blob);
+          await drawBrandedQR(canvas, item.id, qrSrc);
+          const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+          if (blob && folder) {
+            folder.file(`MyParkSaathi_${item.id}.png`, blob);
+          }
         }
       }
 
@@ -240,6 +253,8 @@ export default function PartnerDashboard() {
                          <th className="px-8 py-5">Customer Name</th>
                          <th className="px-8 py-5">Plan Selected</th>
                          <th className="px-8 py-5 text-right">Yield</th>
+                          <th className="px-8 py-5 text-right font-black">Manage</th>
+                          <th className="px-8 py-5 text-right uppercase tracking-[0.15em] font-black">Control</th>
                       </tr>
                    </thead>
                    <tbody className="divide-y divide-slate-100">

@@ -3,12 +3,13 @@ import { db } from '../../lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { useAuth } from '../../hooks/useAuth';
 import { Vehicle } from '../../types';
-import { QRCodeSVG } from 'qrcode.react';
+import { QRCodeCanvas } from 'qrcode.react';
 import { Plus, QrCode, Calendar, ShieldCheck, ExternalLink, Download, Car } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { drawBrandedQR } from '../../lib/qrBranding';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -34,24 +35,17 @@ export default function UserDashboard() {
     return () => unsub();
   }, [user]);
 
-  const downloadQR = (vehicleId: string) => {
-    const svg = document.getElementById(`qr-${vehicleId}`);
-    if (!svg) return;
-    const svgData = new XMLSerializer().serializeToString(svg);
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    const img = new Image();
-    img.onload = () => {
-      canvas.width = img.width;
-      canvas.height = img.height;
-      ctx?.drawImage(img, 0, 0);
+  const downloadQR = async (vehicleId: string) => {
+    const canvas = document.createElement('canvas');
+    const qrSrc = document.getElementById(`qr-src-${vehicleId}`)?.querySelector('canvas');
+    if (qrSrc) {
+      await drawBrandedQR(canvas, vehicleId, qrSrc);
       const pngFile = canvas.toDataURL("image/png");
       const downloadLink = document.createElement("a");
-      downloadLink.download = `QR-${vehicleId}.png`;
+      downloadLink.download = `MyParkSaathi-${vehicleId}.png`;
       downloadLink.href = pngFile;
       downloadLink.click();
-    };
-    img.src = "data:image/svg+xml;base64," + btoa(svgData);
+    }
   };
 
   return (
@@ -181,13 +175,17 @@ export default function UserDashboard() {
               className="bg-white rounded-2xl p-8 max-w-sm w-full relative shadow-2xl flex flex-col items-center text-center"
             >
               <div className="bg-white p-6 rounded-xl border border-slate-200 mb-6 shadow-sm">
-                <QRCodeSVG 
+                <QRCodeCanvas 
                   id={`qr-${selectedQR.id}`}
                   value={`${window.location.origin}/s/${selectedQR.id}`} 
                   size={200}
                   level="H"
                   includeMargin={false}
                 />
+                {/* Hidden high-res source for branded download */}
+                <div className="hidden" id={`qr-src-${selectedQR.id}`}>
+                   <QRCodeCanvas value={`${window.location.origin}/s/${selectedQR.id}`} size={600} />
+                </div>
               </div>
               <h3 className="text-3xl font-black text-slate-900 mb-1 tracking-tight">{selectedQR.vehicleNumber}</h3>
               <p className="text-slate-500 text-sm font-medium mb-8">Scan to view contact details</p>

@@ -7,7 +7,7 @@ import {
 } from 'recharts';
 import { format, subDays, startOfDay, isWithinInterval, startOfWeek, startOfMonth } from 'date-fns';
 import { LogEntry } from '../../types';
-import { Activity, Clock, TrendingUp, AlertCircle, CheckCircle2, Repeat, Package, Trash2, Smartphone, QrCode, Layers, Search, Download as DownloadIcon, UserPlus, Filter, BrainCircuit, AlertTriangle, ArrowRight, MousePointerClick, RefreshCw, Car, DollarSign, Percent, Wallet, Banknote, Calendar, ShieldCheck, Loader2 } from 'lucide-react';
+import { Activity, Clock, TrendingUp, AlertCircle, CheckCircle2, Repeat, Package, Trash2, Smartphone, QrCode, Layers, Search, Download, UserPlus, Filter, BrainCircuit, AlertTriangle, ArrowRight, MousePointerClick, RefreshCw, Car, DollarSign, Percent, Wallet, Banknote, Calendar, ShieldCheck, Loader2, Eye, UserX, Map as MapIcon } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#6366f1'];
@@ -116,7 +116,7 @@ export function AuditLogs({ logs, partners }: { logs: LogEntry[], partners: any[
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `safeqr_audit_${format(new Date(), 'yyyyMMdd')}.csv`);
+    link.setAttribute("download", `myparksaathi_audit_${format(new Date(), 'yyyyMMdd')}.csv`);
     document.body.appendChild(link);
     link.click();
   };
@@ -143,7 +143,7 @@ export function AuditLogs({ logs, partners }: { logs: LogEntry[], partners: any[
               onClick={exportCSV}
               className="px-6 py-3 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/10"
              >
-                <DownloadIcon className="w-4 h-4" /> Export CSV
+                <Download className="w-4 h-4" /> Export CSV
              </button>
           </div>
        </div>
@@ -193,9 +193,20 @@ export function AuditLogs({ logs, partners }: { logs: LogEntry[], partners: any[
                       </td>
                       <td className="px-8 py-5">
                          {log.location?.lat ? (
-                           <div className="flex flex-col">
-                             <span className="text-[10px] font-black text-blue-600 uppercase">LAT: {log.location.lat.toFixed(4)}</span>
-                             <span className="text-[10px] font-black text-blue-600 uppercase">LNG: {log.location.lng.toFixed(4)}</span>
+                           <div className="flex items-center gap-3">
+                             <div className="flex flex-col">
+                               <span className="text-[10px] font-black text-blue-600 uppercase">LAT: {log.location.lat.toFixed(4)}</span>
+                               <span className="text-[10px] font-black text-blue-600 uppercase">LNG: {log.location.lng.toFixed(4)}</span>
+                             </div>
+                             <a 
+                               href={`https://www.google.com/maps?q=${log.location.lat},${log.location.lng}`} 
+                               target="_blank" 
+                               rel="noopener noreferrer"
+                               className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all shadow-sm shadow-blue-200/50"
+                               title="Open in Maps"
+                             >
+                               <MapIcon className="w-4 h-4" />
+                             </a>
                            </div>
                          ) : (
                            <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest italic">No GPS Data</span>
@@ -430,7 +441,17 @@ export function LiveActivity({ feed }: { feed: LogEntry[] }) {
                   {log.timestamp?.toDate ? format(log.timestamp.toDate(), 'HH:mm') : 'JUST NOW'}
                 </p>
                 {log.location?.lat && (
-                    <span className="text-[7px] text-blue-500 font-black uppercase">LIVE GPS</span>
+                    <div className="flex flex-col items-end gap-1">
+                        <span className="text-[7px] text-blue-500 font-black uppercase">LIVE GPS</span>
+                        <a 
+                          href={`https://www.google.com/maps?q=${log.location.lat},${log.location.lng}`} 
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[8px] text-blue-600 font-black hover:underline"
+                        >
+                          VIEW MAP
+                        </a>
+                    </div>
                 )}
             </div>
           </div>
@@ -472,7 +493,7 @@ export function InsightsDashboard({ stats, rawData, logs, timeRange }: { stats: 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `safeqr_performance_${format(new Date(), 'yyyyMMdd')}.csv`);
+    link.setAttribute("download", `myparksaathi_performance_${format(new Date(), 'yyyyMMdd')}.csv`);
     document.body.appendChild(link);
     link.click();
   };
@@ -509,7 +530,7 @@ export function InsightsDashboard({ stats, rawData, logs, timeRange }: { stats: 
                  onClick={exportPerformanceReport}
                  className="flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 border border-white/5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
                >
-                 <DownloadIcon className="w-4 h-4" /> Performance Export
+                 <Download className="w-4 h-4" /> Performance Export
                </button>
             </div>
             
@@ -758,7 +779,7 @@ function StatTile({ icon: Icon, label, value }: { icon: any, label: string, valu
   );
 }
 
-export function FleetManagement({ vehicles, payments, users, cn }: { vehicles: any[], payments: any[], users: any[], cn: any }) {
+export function FleetManagement({ vehicles, payments, users, cn, logs }: { vehicles: any[], payments: any[], users: any[], cn: any, logs: LogEntry[] }) {
   const [filter, setFilter] = React.useState('');
 
   const today = new Date();
@@ -809,6 +830,12 @@ export function FleetManagement({ vehicles, payments, users, cn }: { vehicles: a
      return 'Direct User';
   };
 
+  const getLastKnownLocation = (vehicleId: string) => {
+    const scanLogs = logs.filter(l => l.vehicleId === vehicleId && l.location?.lat);
+    if (scanLogs.length === 0) return null;
+    return scanLogs[0].location; // logs are sorted desc
+  };
+
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
@@ -844,6 +871,7 @@ export function FleetManagement({ vehicles, payments, users, cn }: { vehicles: a
                 <th className="px-8 py-5">Vehicle & Identity</th>
                 <th className="px-8 py-5">Origin / Affiliation</th>
                 <th className="px-8 py-5">QR Matrix ID</th>
+                <th className="px-8 py-5">Last Known Location</th>
                 <th className="px-8 py-5">Financials</th>
                 <th className="px-8 py-5">Lifecycle (Start - Expiry)</th>
               </tr>
@@ -854,6 +882,7 @@ export function FleetManagement({ vehicles, payments, users, cn }: { vehicles: a
                 const startDate = v.createdAt?.toDate ? format(v.createdAt.toDate(), 'PP') : 'N/A';
                 const expiryDate = v.subscriptionExpiry?.toDate ? format(v.subscriptionExpiry.toDate(), 'PP') : 'N/A';
                 const isExpired = v.subscriptionExpiry?.toDate ? v.subscriptionExpiry.toDate() < new Date() : false;
+                const lastLoc = getLastKnownLocation(v.id);
 
                 return (
                   <tr key={v.id} className="hover:bg-slate-50/30 transition-colors">
@@ -872,6 +901,21 @@ export function FleetManagement({ vehicles, payments, users, cn }: { vehicles: a
                     </td>
                     <td className="px-8 py-5">
                       <p className="text-[11px] font-mono font-bold text-slate-700">{v.qrId}</p>
+                    </td>
+                    <td className="px-8 py-5">
+                      {lastLoc ? (
+                        <a 
+                          href={`https://www.google.com/maps?q=${lastLoc.lat},${lastLoc.lng}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-blue-600 hover:text-blue-700 transition-colors"
+                        >
+                          <MapIcon className="w-4 h-4" />
+                          <span className="text-[10px] font-black uppercase tracking-widest underline decoration-2 underline-offset-4">Open Maps</span>
+                        </a>
+                      ) : (
+                        <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">No scan data</span>
+                      )}
                     </td>
                     <td className="px-8 py-5">
                       <p className="text-[11px] font-black text-slate-900">₹{totalPaid}</p>
@@ -907,20 +951,17 @@ export function FinancialsManagement({ payments, commissions, users, vehicles, c
   const [filter, setFilter] = React.useState('');
   const [updating, setUpdating] = React.useState<string | null>(null);
 
-  // Revenue Breakdown calculated from real vehicle originations
-  let totalRevenue = 0;
-  let partnerRevenue = 0;
-  let directUserRevenue = 0;
-
-  vehicles.forEach((v: any) => {
-    const amount = v._historicalRevenue || (v.planId === '5yr' ? 1000 : (v.planId === '2yr' ? 500 : 250));
-    totalRevenue += amount;
-    if (v.partnerUid) {
-      partnerRevenue += amount;
-    } else {
-      directUserRevenue += amount;
-    }
-  });
+  // Revenue Breakdown calculated from real approved payments
+  const approvedPayments = payments.filter((p: any) => p.status === 'verified');
+  const totalRevenue = approvedPayments.reduce((acc: number, curr: any) => acc + (Number(curr.amount) || 0), 0);
+  
+  // Estimate breakdown based on presence of partnerUid in the payment or linked vehicle
+  const partnerRevenue = approvedPayments.filter((p: any) => {
+    const v = vehicles.find((veh: any) => veh.id === p.vehicleId);
+    return v?.partnerUid || p.partnerUid;
+  }).reduce((acc: number, curr: any) => acc + (Number(curr.amount) || 0), 0);
+  
+  const directUserRevenue = totalRevenue - partnerRevenue;
 
   // Commission breakdown
   let totalCommission = 0;
@@ -1236,6 +1277,7 @@ export function FutureProjection() {
 export function PaymentVerificationModule({ payments, users }: any) {
   const [filter, setFilter] = React.useState('pending');
   const [updating, setUpdating] = React.useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = React.useState<string | null>(null);
 
   const filteredPayments = payments.filter((p: any) => {
     return filter === 'all' || p.status === filter;

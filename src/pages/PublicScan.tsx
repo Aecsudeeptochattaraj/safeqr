@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { db } from '../lib/firebase';
 import { doc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Vehicle } from '../types';
-import { Phone, MessageCircle, AlertCircle, Shield, Camera, Send, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Phone, MessageCircle, AlertCircle, Shield, Camera, Send, CheckCircle2, RefreshCw, MapPin } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function PublicScan() {
@@ -21,8 +21,18 @@ export default function PublicScan() {
   const [isReporting, setIsReporting] = useState(false);
   const [emergencySummary, setEmergencySummary] = useState({ message: '', photo: null as string | null });
   const [reportSuccess, setReportSuccess] = useState(false);
+  const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
 
   useEffect(() => {
+    // Start geolocation as early as possible
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => setCurrentLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        null,
+        { timeout: 10000, enableHighAccuracy: true }
+      );
+    }
+
     // Capture Location & Device Info
     const captureScan = (vehicleData: Vehicle, qrIdParam?: string) => {
       const ua = navigator.userAgent;
@@ -30,6 +40,13 @@ export default function PublicScan() {
       const isTablet = /iPad/i.test(ua);
       
       const fireLog = (lat?: number, lng?: number) => {
+        const latitude = typeof lat === 'number' ? lat : currentLocation?.lat || null;
+        const longitude = typeof lng === 'number' ? lng : currentLocation?.lng || null;
+
+        if (latitude && longitude && !currentLocation) {
+          setCurrentLocation({ lat: latitude, lng: longitude });
+        }
+
         addDoc(collection(db, 'logs'), {
            vehicleId: vehicleData.id,
            action: 'scan',
@@ -40,11 +57,11 @@ export default function PublicScan() {
              type: isTablet ? 'tablet' : isMobile ? 'mobile' : 'desktop'
            },
            location: { 
-             city: lat ? 'Live' : 'Unknown', 
+             city: latitude ? 'Live' : 'Unknown', 
              region: 'Live', 
              country: 'IN',
-             lat: lat || null,
-             lng: lng || null
+             lat: latitude,
+             lng: longitude
            },
            metadata: { 
              userAgent: ua,
@@ -58,7 +75,7 @@ export default function PublicScan() {
         navigator.geolocation.getCurrentPosition(
           (pos) => fireLog(pos.coords.latitude, pos.coords.longitude),
           () => fireLog(),
-          { timeout: 5000 }
+          { timeout: 8000 }
         );
       } else {
         fireLog();
@@ -88,7 +105,7 @@ export default function PublicScan() {
               return;
             }
           } else {
-            setError('This SAFE-TAG is ready. Please map it to a vehicle via the Partner Portal to activate it.');
+            setError('This MyParkSaathi node is ready. Please map it to a vehicle via the Partner Portal to activate it.');
             setLoading(false);
             return;
           }
@@ -131,6 +148,20 @@ export default function PublicScan() {
   const handleVerify = () => {
     if (captchaInput.toUpperCase() === captchaText) {
       setIsVerified(true);
+      // Re-trigger geolocation on valid interaction for better accuracy
+      if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            setCurrentLocation(loc);
+            logAction('authorized', 'Verification success');
+          },
+          () => logAction('authorized', 'Verification success (No GPS)'),
+          { timeout: 5000 }
+        );
+      } else {
+        logAction('authorized', 'Verification success');
+      }
     } else {
       setError('Invalid verification code. Please refresh the captcha and try again.');
       setCaptchaInput('');
@@ -138,13 +169,20 @@ export default function PublicScan() {
     }
   };
 
-  const logAction = async (action: 'call' | 'whatsapp' | 'emergency', msg?: string) => {
+  const logAction = async (action: 'call' | 'whatsapp' | 'emergency' | 'authorized', msg?: string) => {
     if (!id || !vehicle) return;
     const ua = navigator.userAgent;
     const isMobile = /iPhone|iPad|iPod|Android/i.test(ua);
     const isTablet = /iPad/i.test(ua);
 
     const captureLog = (lat?: number, lng?: number) => {
+      const latitude = typeof lat === 'number' ? lat : currentLocation?.lat || null;
+      const longitude = typeof lng === 'number' ? lng : currentLocation?.lng || null;
+      
+      if (latitude && longitude && !currentLocation) {
+        setCurrentLocation({ lat: latitude, lng: longitude });
+      }
+
       addDoc(collection(db, 'logs'), {
         vehicleId: vehicle.id,
         action,
@@ -155,10 +193,11 @@ export default function PublicScan() {
           type: isTablet ? 'tablet' : isMobile ? 'mobile' : 'desktop'
         },
         location: { 
-          city: lat ? 'Live' : 'Unknown', 
+          city: latitude ? 'Live' : 'Unknown', 
           region: 'Live', 
-          lat: lat || null,
-          lng: lng || null
+          country: 'IN',
+          lat: latitude,
+          lng: longitude
         },
         metadata: { 
           message: msg || null,
@@ -215,7 +254,7 @@ export default function PublicScan() {
         </div>
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Oops!</h1>
         <p className="text-gray-500 mb-8">{error}</p>
-        <button onClick={() => window.location.href = '/'} className="px-8 py-3 bg-gray-900 text-white rounded-2xl font-bold">SafeQR Home</button>
+        <button onClick={() => window.location.href = '/'} className="px-8 py-3 bg-gray-900 text-white rounded-2xl font-bold">MyParkSaathi Home</button>
       </div>
     );
   }
@@ -316,6 +355,24 @@ export default function PublicScan() {
                   </div>
                   <CheckCircle2 className="w-4 h-4 text-green-500" />
                 </button>
+
+                {currentLocation && (
+                  <button 
+                    onClick={() => window.open(`https://www.google.com/maps?q=${currentLocation.lat},${currentLocation.lng}`, '_blank')}
+                    className="flex items-center justify-between p-5 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-all group"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="bg-slate-100 p-3 rounded-lg group-hover:bg-red-600 group-hover:text-white transition-colors">
+                        <MapPin className="w-5 h-5 text-slate-600 group-hover:text-white" />
+                      </div>
+                      <div className="text-left">
+                        <p className="text-xs font-bold text-slate-900 uppercase">View Location</p>
+                        <p className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">Open in Google Maps</p>
+                      </div>
+                    </div>
+                    <CheckCircle2 className="w-4 h-4 text-red-500" />
+                  </button>
+                )}
 
                 <div className="pt-4 border-t border-slate-100">
                   <button 

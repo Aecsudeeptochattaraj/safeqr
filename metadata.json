@@ -1,6 +1,6 @@
 {
-  "name": "SafeQR Intelligence: Admin Control Suite",
-  "description": "Enterprise-grade administrative dashboard for SafeQR with AI predictive analytics, global inventory dispatch, and forensic audit capabilities.",
+  "name": "MyParkSaathi Intelligence: Admin Control Suite",
+  "description": "Enterprise-grade administrative dashboard for MyParkSaathi with AI predictive analytics, global inventory dispatch, and forensic audit capabilities.",
   "requestFramePermissions": ["camera", "geolocation"],
   "majorCapabilities": ["firebase", "auth", "payments", "qr-gen"]
 }

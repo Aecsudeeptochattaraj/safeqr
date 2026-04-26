@@ -37,8 +37,8 @@ export default function Landing() {
             </div>
             
             <h1 className="text-7xl lg:text-[140px] font-black leading-[0.82] uppercase mb-12 tracking-tighter text-slate-900">
-              SAFE<br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 italic font-medium -ml-2">DRIVE.</span>
+              MYPARK<br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 italic font-medium -ml-2">SAATHI.</span>
             </h1>
             
             <p className="text-xl text-slate-500 mb-12 max-w-md leading-relaxed font-medium">
@@ -186,7 +186,7 @@ export default function Landing() {
                   <div className="absolute -bottom-10 -right-10 bg-slate-900 text-white p-8 rounded-3xl max-w-xs shadow-2xl hidden md:block border border-slate-700">
                      <p className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-400 mb-2">Apartment Admin View</p>
                      <p className="text-sm font-bold leading-relaxed italic opacity-80">
-                       "Since deploying SafeQR, our security gate calls have decreased by 40% as residents resolve parking issues privately."
+                       "Since deploying MyParkSaathi, our security gate calls have decreased by 40% as residents resolve parking issues privately."
                      </p>
                      <div className="mt-4 flex items-center gap-3">
                         <div className="w-6 h-6 rounded-full bg-slate-700" />

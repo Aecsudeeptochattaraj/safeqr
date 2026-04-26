@@ -10,7 +10,7 @@ interface QRCardProps {
 
 export const QRCard: React.FC<QRCardProps> = ({ 
   id, 
-  brandName = "SAFE-TAG", 
+  brandName = "MYPARK-TAG", 
   size = 200,
   showLabels = true 
 }) => {
@@ -63,7 +63,7 @@ export const QRCard: React.FC<QRCardProps> = ({
 
     const pngFile = offscreen.toDataURL("image/png");
     const downloadLink = document.createElement("a");
-    downloadLink.download = `SAFE_TAG_${id}.png`;
+    downloadLink.download = `MYPARK_TAG_${id}.png`;
     downloadLink.href = pngFile;
     downloadLink.click();
   };

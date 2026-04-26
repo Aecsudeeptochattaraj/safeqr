@@ -1,4 +1,4 @@
-# SafeQR Safety Grid - Deployment Guide
+# MyParkSaathi Safety Grid - Deployment Guide
 
 This application is ready for production deployment on **Vercel**.
 

@@ -4,11 +4,11 @@ import { motion } from 'motion/react';
 import { Car, Smartphone, MessageCircle, CreditCard, CheckCircle, ShieldCheck, Camera, Sparkles, Loader2, RefreshCw, Download } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { db } from '../lib/firebase';
-import { processImageClientSide } from '../lib/imageProcessor';
-import { GoogleGenAI } from '@google/genai';
 import { doc, setDoc, serverTimestamp, collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+
+import { scanNumberPlate } from '../lib/gemini';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -39,32 +39,28 @@ export default function RegisterVehicle() {
     if (!file) return;
 
     setIsAiScanning(true);
+    setApiError(null);
     try {
-      const apiKey = process.env.GEMINI_API_KEY || '';
-      const ai = new GoogleGenAI({ apiKey });
-      
       const reader = new FileReader();
-      const base64Data = await new Promise<string>((resolve) => {
-        reader.onload = () => resolve((reader.result as string).split(',')[1]);
-        reader.readAsDataURL(file);
+      const base64Promise = new Promise<string>((resolve) => {
+        reader.onload = (e) => {
+          const res = e.target?.result as string;
+          resolve(res.split(',')[1]); // Only the data part
+        };
       });
+      reader.readAsDataURL(file);
+      const base64 = await base64Promise;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: {
-          parts: [
-            { text: "Extract the vehicle license plate number from this image. Only return the number, nothing else." },
-            { inlineData: { mimeType: file.type, data: base64Data } }
-          ]
-        }
-      });
-
-      const extracted = response.text?.trim() || '';
-      if (extracted) {
-        setFormData(prev => ({ ...prev, vehicleNumber: extracted.toUpperCase() }));
+      const plateNumber = await scanNumberPlate(base64);
+      
+      if (plateNumber) {
+        setFormData(prev => ({ ...prev, vehicleNumber: plateNumber.toUpperCase() }));
+      } else {
+        setApiError('Auto-scan could not detect a plate number. Please enter it manually.');
       }
     } catch (err) {
       console.error('AI Scan failed:', err);
+      setApiError('Auto-scan failed. Please enter the number manually.');
     } finally {
       setIsAiScanning(false);
     }
@@ -92,16 +88,23 @@ export default function RegisterVehicle() {
     
     try {
       const formDataToSend = new FormData();
-      formDataToSend.append('transactionId', transactionId);
-      formDataToSend.append('amount', (formData.planId === '5yr' ? 1000 : 500).toString());
-      formDataToSend.append('userId', user?.uid || '');
       formDataToSend.append('screenshot', screenshot);
+      formDataToSend.append('transactionId', transactionId);
+      formDataToSend.append('userId', user?.uid || '');
 
-      // Hit our backend for metadata scrubbing and replay attack prevention
-      console.log(`[FRONTEND-TRACE] Processing image locally for static Vercel deployment compatibility`);
-      const scrubbedImage = await processImageClientSide(screenshot);
+      const apiResponse = await fetch('/api/submitPayment', {
+        method: 'POST',
+        body: formDataToSend
+      });
 
-      // Backend returns the scrubbed metadata-free image.
+      if (!apiResponse.ok) {
+        const errorData = await apiResponse.json();
+        throw new Error(errorData.message || 'Payment processing failed');
+      }
+
+      const { scrubbedImage } = await apiResponse.json();
+
+      // Continue with Firestore storage
       const vehicleRef = doc(collection(db, 'vehicles'));
       const expiryDate = new Date();
       expiryDate.setFullYear(expiryDate.getFullYear() + (formData.planId === '5yr' ? 5 : 2));
@@ -110,7 +113,7 @@ export default function RegisterVehicle() {
         id: vehicleRef.id,
         ownerUid: user?.uid,
         ...formData,
-        qrId: null, // Protected Content
+        qrId: null,
         status: 'pending_verification',
         subscriptionExpiry: expiryDate,
         createdAt: serverTimestamp(),
@@ -124,7 +127,7 @@ export default function RegisterVehicle() {
         transactionId,
         amount: formData.planId === '5yr' ? 1000 : 500,
         status: 'pending',
-        scrubbedScreenshotUrl: scrubbedImage, // Stored safely
+        scrubbedScreenshotUrl: scrubbedImage,
         createdAt: serverTimestamp(),
       });
 

@@ -6,6 +6,7 @@ import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { GoogleGenAI } from '@google/genai';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -14,6 +15,7 @@ async function startServer() {
   const PORT = 3000;
 
   // 0. Body Parsers & Upload Config
+  app.use(express.json({ limit: '10mb' }));
   const upload = multer({ 
     storage: multer.memoryStorage(),
     limits: { fileSize: 15 * 1024 * 1024 } // Increased to 15MB
@@ -28,47 +30,126 @@ async function startServer() {
     next();
   });
 
-  // 2. HARDENED API LAYER (MOUNTED DIRECTLY ON APP FOR MAX PRIORITY)
-  app.post('/api/submitPayment', (req, res) => {
+  // 2. HARDENED API LAYER
+  app.post('/api/submitPayment', upload.single('screenshot'), async (req, res) => {
     console.log("[SECURITY-NODE] Incoming Submission...");
-    upload.single('screenshot')(req, res, async (multerErr) => {
-      if (multerErr) {
-        console.error("[SECURITY-NODE] Multer Fault:", multerErr);
-        return res.status(400).json({ error: 'FILE_UPLOAD_FAILED', message: multerErr.message });
+    
+    try {
+      const { transactionId, userId } = req.body;
+      if (!transactionId || !userId || !req.file) {
+        console.warn("[SECURITY-NODE] Data check failed", { transactionId, userId, file: !!req.file });
+        return res.status(400).json({ error: 'DATA_MALFORMED', message: 'All fields + Screenshot required' });
       }
 
+      console.log(`[SECURITY-NODE] Scrubbing image: ${req.file.size} bytes`);
+      
+      let processedData = '';
       try {
-        const { transactionId, userId } = req.body;
-        if (!transactionId || !userId || !req.file) {
-          console.warn("[SECURITY-NODE] Data check failed", { transactionId, userId, file: !!req.file });
-          return res.status(400).json({ error: 'DATA_MALFORMED', message: 'All fields + Screenshot required' });
-        }
-
-        console.log(`[SECURITY-NODE] Scrubbing image: ${req.file.size} bytes`);
-        
-        let processedData = '';
-        try {
-          const buffer = await sharp(req.file.buffer)
-            .resize(800, 800, { fit: 'inside' })
-            .jpeg({ quality: 80 })
-            .toBuffer();
-          processedData = `data:image/jpeg;base64,${buffer.toString('base64')}`;
-        } catch (e) {
-          console.warn("[SECURITY-NODE] Process failure, fallback to raw");
-          processedData = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
-        }
-
-        console.log("[SECURITY-NODE] Success");
-        return res.status(200).json({
-          success: true,
-          scrubbedImage: processedData,
-          transactionId
-        });
-      } catch (fatal: any) {
-        console.error("[SECURITY-NODE] Critical Error:", fatal);
-        return res.status(500).json({ error: 'NODE_FAILURE', details: fatal.message });
+        const buffer = await sharp(req.file.buffer)
+          .resize(800, 800, { fit: 'inside' })
+          .jpeg({ quality: 80 })
+          .toBuffer();
+        processedData = `data:image/jpeg;base64,${buffer.toString('base64')}`;
+      } catch (e) {
+        console.warn("[SECURITY-NODE] Process failure, fallback to raw");
+        processedData = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
       }
-    });
+
+      console.log("[SECURITY-NODE] Success");
+      return res.status(200).json({
+        success: true,
+        scrubbedImage: processedData,
+        transactionId
+      });
+    } catch (fatal: any) {
+      console.error("[SECURITY-NODE] Critical Error:", fatal);
+      return res.status(500).json({ error: 'NODE_FAILURE', details: fatal.message });
+    }
+  });
+
+  // --- AI SCANNING PROXIES (LEGACY / DEPRECATED - Preferred Frontend) ---
+  app.post('/api/scanPlate', upload.single('image'), async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: 'IMAGE_REQUIRED' });
+      
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) return res.status(500).json({ error: 'GEMINI_KEY_MISSING' });
+
+      const ai = new GoogleGenAI({ apiKey });
+      
+      const buf1 = await sharp(req.file.buffer)
+        .resize(1024, 1024, { fit: 'inside' })
+        .jpeg({ quality: 80 })
+        .toBuffer();
+
+      const result = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [{
+          role: 'user',
+          parts: [
+            { text: "Extract the vehicle license plate number from this image. Only return the alphanumeric plate number, nothing else. If not found, return 'NOT_FOUND'." },
+            {
+              inlineData: {
+                data: buf1.toString('base64'),
+                mimeType: 'image/jpeg'
+              }
+            }
+          ]
+        }]
+      });
+
+      const text = result.text?.trim() || '';
+      res.json({ vehicleNumber: text === 'NOT_FOUND' ? '' : text });
+    } catch (err: any) {
+      console.error("[SCAN-NODE] AI Error:", err);
+      res.status(500).json({ error: 'SCAN_FAILED', details: err.message });
+    }
+  });
+
+  app.post('/api/scanVehicleDetails', upload.single('image'), async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: 'IMAGE_REQUIRED' });
+      
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) return res.status(500).json({ error: 'GEMINI_KEY_MISSING' });
+
+      const ai = new GoogleGenAI({ apiKey });
+      
+      const buf2 = await sharp(req.file.buffer)
+        .resize(1024, 1024, { fit: 'inside' })
+        .jpeg({ quality: 80 })
+        .toBuffer();
+
+      const result = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: [{
+          role: 'user',
+          parts: [
+            { text: `Extract technical vehicle details from this image. 
+               Return a JSON object with keys: plate (the number), brand (KIA, HYUNDAI, etc), color (RED, WHITE, etc), and type (CAR, BIKE, SCOOTER).
+               If not visible, use value "NOT_FOUND". Only return JSON.` 
+            },
+            {
+              inlineData: {
+                data: buf2.toString('base64'),
+                mimeType: 'image/jpeg'
+              }
+            }
+          ]
+        }]
+      });
+
+      const text = result.text?.replace(/```json|```/g, '').trim() || '{}';
+      try {
+        const json = JSON.parse(text);
+        res.json(json);
+      } catch (e) {
+        res.status(500).json({ error: 'PARSING_FAILED', raw: text });
+      }
+    } catch (err: any) {
+      console.error("[SCAN-NODE] Details AI Error:", err);
+      res.status(500).json({ error: 'SCAN_FAILED', details: err.message });
+    }
   });
 
   app.get('/api/test', (req, res) => res.json({ status: 'active', ts: Date.now() }));

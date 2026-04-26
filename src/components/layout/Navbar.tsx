@@ -25,7 +25,7 @@ export default function Navbar() {
                 <QrCode className="w-6 h-6 text-blue-500" />
               </div>
               <div className="flex flex-col">
-                <span className="text-lg font-black text-slate-900 tracking-tighter uppercase leading-none">SafeQR</span>
+                <span className="text-lg font-black text-slate-900 tracking-tighter uppercase leading-none">MyParkSaathi</span>
                 <span className="text-[8px] font-black text-blue-600 tracking-[0.3em] uppercase leading-none mt-1">Safety Grid</span>
               </div>
             </Link>

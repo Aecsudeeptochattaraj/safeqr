@@ -3,7 +3,7 @@ import { db } from '../../lib/firebase';
 import { collection, query, getDocs, limit, serverTimestamp, writeBatch, doc, where, updateDoc, onSnapshot, addDoc, deleteDoc } from 'firebase/firestore';
 import { AppUser, QRInventory, LogEntry } from '../../types';
 import { useAuth } from '../../hooks/useAuth';
-import { Users, Car, Coins, ShieldCheck, QrCode, Package, Download, UserMinus, Layers, Loader2, Printer, ExternalLink, Trash2, Repeat, AlertTriangle, CheckCircle2, TrendingUp, Activity, Clock, PieChart, Info, Search, UserX, UserCheck, ShieldOff, Eye, Map, List, ChevronDown, LayoutDashboard } from 'lucide-react';
+import { Users, Car, Coins, ShieldCheck, QrCode, Package, Download, UserMinus, Layers, Loader2, Printer, ExternalLink, Trash2, Repeat, AlertTriangle, CheckCircle2, TrendingUp, Activity, Clock, PieChart, Info, Search, UserX, UserCheck, ShieldOff, Eye, Map as MapIcon, List, ChevronDown, LayoutDashboard } from 'lucide-react';
 
 const viewConfig = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
@@ -22,6 +22,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeCanvas } from 'qrcode.react';
 import JSZip from 'jszip';
+import { drawBrandedQR } from '../../lib/qrBranding';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Cell, Legend
@@ -83,16 +84,9 @@ export default function AdminDashboard() {
       setStats(prev => ({ ...prev, users: partners.length }));
     });
     const unsubVehicles = onSnapshot(collection(db, 'vehicles'), snap => {
-      let calcRevenue = 0;
-      const vehicles = snap.docs.map(d => {
-         const data = d.data();
-         // historical recovery for old data without payment entries
-         const amt = data.planId === '5yr' ? 1000 : (data.planId === '2yr' ? 500 : 250);
-         calcRevenue += amt;
-         return { ...data, id: d.id, _historicalRevenue: amt };
-      });
+      const vehicles = snap.docs.map(d => ({ ...d.data(), id: d.id }));
       setRawData(prev => ({ ...prev, vehicles }));
-      setStats(prev => ({ ...prev, vehicles: snap.size, revenue: calcRevenue }));
+      setStats(prev => ({ ...prev, vehicles: snap.size }));
     });
     
     // QR Counts
@@ -148,7 +142,12 @@ export default function AdminDashboard() {
 
     const unsubPayments = onSnapshot(collection(db, 'payments'), snap => {
       const payments = snap.docs.map(d => ({ ...d.data(), id: d.id } as any));
+      const approvedRevenue = payments
+        .filter(p => p.status === 'verified')
+        .reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+      
       setPaymentsData(payments);
+      setStats(prev => ({ ...prev, revenue: approvedRevenue }));
     });
     
     const unsubCommissions = onSnapshot(collection(db, 'commissions'), snap => {
@@ -378,7 +377,7 @@ export default function AdminDashboard() {
       {view === 'supply_chain' && <InventorySupplyChain rawData={rawData} logs={allLogs} />}
       {view === 'audit_logs' && <AuditLogs logs={allLogs} partners={rawData.partners} />}
       {view === 'qr_management' && <QRManagement />}
-      {view === 'fleet' && <FleetManagement vehicles={rawData.vehicles} payments={paymentsData} users={rawData.allUsers} cn={cn} />}
+      {view === 'fleet' && <FleetManagement vehicles={rawData.vehicles} payments={paymentsData} users={rawData.allUsers} cn={cn} logs={allLogs} />}
       {view === 'projection' && <FutureProjection />}
       {view === 'users' && <UserManagement />}
       {view === 'danger_zone' && <DangerZone />}
@@ -392,91 +391,199 @@ function DangerZone() {
   const [status, setStatus] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [confirmText, setConfirmText] = useState('');
+  const [progress, setProgress] = useState({ current: 0, total: 0 });
 
   const executeHardReset = async () => {
-    if (confirmText !== 'CONFIRM') return;
+    if (confirmText !== 'CLEAR ALL DATA') return;
 
     setWiping(true);
-    setStatus('Initializing global wipe...');
+    setStatus('COMMENCING TOTAL SYSTEM WIPE...');
+    setProgress({ current: 0, total: 0 });
 
     try {
-      const wipeCollection = async (colName: string) => {
-        setStatus(`Wiping ${colName}...`);
+      const collectionsToWipe = ['vehicles', 'qr_inventory', 'logs', 'payments', 'commissions', 'users'];
+      
+      for (const colName of collectionsToWipe) {
+        setStatus(`AUDITING: ${colName.toUpperCase()}...`);
         const snap = await getDocs(collection(db, colName));
+        const total = snap.size;
+        setProgress({ current: 0, total });
+
+        // Use batches of 500 for Firestore limits
+        let batch = writeBatch(db);
+        let count = 0;
+        let deletedInCol = 0;
+
         for (const d of snap.docs) {
-          // Protect the current admin user account to prevent lockout
-          if (colName === 'users' && user && d.id === user.uid) continue;
-          await deleteDoc(doc(db, colName, d.id));
+          const data = d.data();
+          
+          // CRITICAL: Protect ALL admin users to prevent total system locked-out state
+          if (colName === 'users' && data.role === 'admin') {
+            console.log(`Preserving Admin Node: ${d.id}`);
+            continue;
+          }
+
+          batch.delete(d.ref);
+          count++;
+          deletedInCol++;
+
+          if (count >= 500) {
+            setStatus(`OBLITERATING ${colName.toUpperCase()}: ${deletedInCol}/${total}...`);
+            await batch.commit();
+            batch = writeBatch(db);
+            count = 0;
+          }
+          
+          setProgress(p => ({ ...p, current: deletedInCol }));
         }
-      };
 
-      await wipeCollection('vehicles');
-      await wipeCollection('qr_inventory');
-      await wipeCollection('logs');
-      await wipeCollection('payments');
-      await wipeCollection('commissions');
-      await wipeCollection('users');
+        if (count > 0) {
+          setStatus(`FINALIZING ${colName.toUpperCase()} OBLITERATION...`);
+          await batch.commit();
+        }
+      }
 
-      setStatus('System factory reset successfully.');
+      setStatus('FACTORY RESET COMPLETE. SYSTEM PURIFIED.');
       setShowConfirm(false);
       setConfirmText('');
-      setTimeout(() => setStatus(null), 3000);
+      setTimeout(() => {
+        setStatus(null);
+        window.location.reload(); // Reload to refresh all state
+      }, 3000);
     } catch (err: any) {
-      console.error('Wipe Error:', err);
-      setStatus(`Error: ${err.message}`);
+      console.error('CRITICAL WIPE FAILURE:', err);
+      setStatus(`FATAL ERROR: ${err.message}`);
     } finally {
       setWiping(false);
     }
   };
 
   return (
-    <div className="bg-red-50 border border-red-100 p-8 rounded-3xl shadow-sm">
-      <h3 className="text-xl font-black text-red-900 uppercase tracking-tight mb-2">System Danger Zone</h3>
-      <p className="text-sm font-medium text-red-700 mb-6 max-w-xl">
-        Execute a full system factory reset. This will permanently obliterate all vehicles, nodes, logs, payments, and non-admin participants from the platform. Use only for testing initialization.
-      </p>
-      
-      {!showConfirm ? (
-        <button 
-          onClick={() => setShowConfirm(true)}
-          className="px-8 py-4 bg-red-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-red-700 active:scale-95 transition-all shadow-xl shadow-red-200 flex items-center gap-3"
-        >
-          <Trash2 className="w-5 h-5" />
-          Request Hard Reset
-        </button>
-      ) : (
-        <div className="bg-white p-6 rounded-2xl border border-red-200 shadow-xl max-w-md">
-          <p className="text-sm font-bold text-red-600 mb-4 uppercase tracking-widest">Type 'CONFIRM' to proceed</p>
-          <input 
-            type="text" 
-            value={confirmText}
-            onChange={(e) => setConfirmText(e.target.value)}
-            className="w-full border-2 border-red-100 rounded-xl px-4 py-3 mb-4 outline-none focus:border-red-500 font-black text-red-900" 
-            placeholder="CONFIRM"
-          />
-          <div className="flex gap-4">
-            <button 
-              onClick={() => { setShowConfirm(false); setConfirmText(''); }}
-              className="flex-1 py-3 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-xl font-black uppercase text-xs transition-colors"
-            >
-              Cancel
-            </button>
-            <button 
-              onClick={executeHardReset}
-              disabled={confirmText !== 'CONFIRM' || wiping}
-              className="flex-1 py-3 bg-red-600 text-white hover:bg-red-700 rounded-xl font-black uppercase text-xs disabled:opacity-50 flex items-center justify-center gap-2 transition-colors"
-            >
-              {wiping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-              {wiping ? 'Wiping...' : 'Destroy Data'}
-            </button>
+    <div className="space-y-8">
+      <div className="bg-white border-2 border-red-100 rounded-3xl overflow-hidden shadow-2xl">
+        <div className="bg-red-600 p-8 text-white">
+          <div className="flex items-center gap-4 mb-4">
+            <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-md">
+              <AlertTriangle className="w-8 h-8 text-white" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black uppercase tracking-tighter italic">Restricted Area: Danger Zone</h2>
+              <p className="text-red-100 text-xs font-bold uppercase tracking-widest opacity-80">Global System Integrity Override</p>
+            </div>
           </div>
-          {status && (
-            <p className="mt-4 text-[10px] font-black uppercase tracking-widest text-red-500 animate-pulse text-center">
-              {status}
-            </p>
+        </div>
+
+        <div className="p-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+            <div className="space-y-4">
+              <p className="text-slate-900 font-extrabold uppercase text-sm tracking-tight mb-2">Consequences of Initialization</p>
+              <ul className="space-y-3">
+                {[
+                  "Permanent deletion of all vehicle registrations",
+                  "Purge of all payment transactions and ledgers",
+                  "Wipe of all system audit logs and scan history",
+                  "Hard delete for all non-admin participant accounts",
+                  "Reset of QR Inventory mapping states"
+                ].map((item, i) => (
+                  <li key={i} className="flex items-center gap-3 text-slate-500 font-medium text-xs">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+               <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-4">System Warning</p>
+               <p className="text-xs text-slate-600 leading-relaxed font-medium italic">
+                 "This action cannot be undone. Once initialized, the database will be purged of all operational data. Only Admin nodes will be preserved to maintain control of the environment."
+               </p>
+            </div>
+          </div>
+          
+          {!showConfirm ? (
+            <button 
+              onClick={() => setShowConfirm(true)}
+              className="w-full sm:w-auto px-8 py-4 bg-red-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-red-700 active:scale-95 transition-all shadow-xl shadow-red-200 flex items-center justify-center gap-3 border-b-4 border-red-800"
+            >
+              <Trash2 className="w-5 h-5" />
+              Initialize Factory Reset
+            </button>
+          ) : (
+            <div className="bg-red-50 p-8 rounded-2xl border-2 border-red-200 animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <div className="flex items-center gap-3 mb-6">
+                 <ShieldOff className="w-6 h-6 text-red-600" />
+                 <p className="text-sm font-black text-red-900 uppercase tracking-widest">Type 'CLEAR ALL DATA' to confirm</p>
+              </div>
+              
+              <input 
+                type="text" 
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                autoFocus
+                className="w-full bg-white border-2 border-red-200 rounded-xl px-6 py-4 mb-6 outline-none focus:border-red-600 font-black text-red-900 text-lg uppercase tracking-widest placeholder:text-red-100" 
+                placeholder="PROCEED WITH CAUTION"
+                disabled={wiping}
+              />
+
+              <div className="flex flex-col sm:flex-row gap-4">
+                <button 
+                  onClick={() => { setShowConfirm(false); setConfirmText(''); }}
+                  disabled={wiping}
+                  className="flex-1 py-4 bg-white text-slate-600 hover:bg-slate-50 border border-slate-200 rounded-xl font-black uppercase text-xs transition-all disabled:opacity-50"
+                >
+                  Terminate Request
+                </button>
+                <button 
+                  onClick={executeHardReset}
+                  disabled={confirmText !== 'CLEAR ALL DATA' || wiping}
+                  className="flex-[2] py-4 bg-red-600 text-white hover:bg-red-700 rounded-xl font-black uppercase text-xs disabled:opacity-50 flex items-center justify-center gap-3 shadow-lg shadow-red-200 transition-all active:scale-95"
+                >
+                  {wiping ? <Loader2 className="w-5 h-5 animate-spin" /> : <Activity className="w-5 h-5" />}
+                  {wiping ? 'OBLITERATING...' : 'Confirm System Wipe'}
+                </button>
+              </div>
+
+              {status && (
+                <div className="mt-8 space-y-4">
+                   <div className="flex justify-between items-end mb-1">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-red-600 animate-pulse">
+                        {status}
+                      </p>
+                      {progress.total > 0 && (
+                        <p className="text-[10px] font-black text-red-400">
+                          {Math.round((progress.current / progress.total) * 100)}%
+                        </p>
+                      )}
+                   </div>
+                   <div className="w-full h-2 bg-red-100 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-red-600 transition-all duration-300 ease-out" 
+                        style={{ width: `${progress.total > 0 ? (progress.current / progress.total) * 100 : 0}%` }}
+                      />
+                   </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
-      )}
+      </div>
+      
+      {/* Forensic Cleanliness Checklist */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+         {[
+           { icon: ShieldCheck, label: "Admin Security", sub: "Control Nodes Preserved" },
+           { icon: Layers, label: "Hard Data Wipe", sub: "No Residual Records" },
+           { icon: Repeat, label: "Clean Slate", sub: "Ready for Migration" }
+         ].map((item, i) => (
+           <div key={i} className="bg-white p-6 rounded-2xl border border-slate-200 flex items-center gap-4 opacity-50 grayscale">
+              <item.icon className="w-6 h-6 text-slate-400" />
+              <div>
+                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-900">{item.label}</p>
+                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{item.sub}</p>
+              </div>
+           </div>
+         ))}
+      </div>
     </div>
   );
 }
@@ -585,6 +692,7 @@ function QRManagement() {
   };
 
   const unassignQR = async (id: string) => {
+    if (!window.confirm('Reclaim this node to the global system vault? The partner will lose access to it.')) return;
     try {
       await updateDoc(doc(db, 'qr_inventory', id), { 
         partnerUid: null,
@@ -605,6 +713,7 @@ function QRManagement() {
   };
 
   const unlinkQR = async (id: string) => {
+    if (!window.confirm('Unlink this node from the current vehicle? This will reset the mapping but keep the node with the partner.')) return;
     try {
       await updateDoc(doc(db, 'qr_inventory', id), { 
         status: 'available',
@@ -622,6 +731,7 @@ function QRManagement() {
   };
 
   const deleteQR = async (id: string) => {
+    if (!window.confirm('PERMANENTLY delete this node from the database? This cannot be undone.')) return;
     try {
       await deleteDoc(doc(db, 'qr_inventory', id));
       setSelectedIds(prev => prev.filter(i => i !== id));
@@ -685,25 +795,30 @@ function QRManagement() {
 
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
-    const brand = "SAFE-TAG";
-    const cardsHtml = validIds.map(id => {
-      const canvas = document.getElementById(`qr-src-${id}`)?.querySelector('canvas');
-      const dataUrl = canvas?.toDataURL("image/png");
-      return `
-        <div style="width: 200px; padding: 20px; border: 1px solid #eee; margin: 10px; display: inline-block; text-align: center; font-family: sans-serif; page-break-inside: avoid; border-radius: 12px; background: #fff;">
-          <div style="font-size: 14px; font-weight: 900; letter-spacing: 2px; margin-bottom: 10px;">${brand}</div>
-          <img src="${dataUrl}" style="width: 160px; height: 160px; display: block; margin: 0 auto;" />
-          <div style="margin-top: 10px; font-family: monospace; font-size: 18px; font-weight: 900; color: #3b82f6;">${id}</div>
-          <div style="font-size: 8px; font-weight: bold; color: #94a3b8; margin-top: 5px; text-transform: uppercase;">Scan to connect owner</div>
-        </div>
-      `;
-    }).join('');
+    
+    const brand = "MyParkSaathi";
+    const cards = [];
+    
+    for (const id of validIds) {
+      const canvas = document.createElement('canvas');
+      const qrSrc = document.getElementById(`qr-src-${id}`)?.querySelector('canvas');
+      if (qrSrc) {
+        await drawBrandedQR(canvas, id, qrSrc);
+        const dataUrl = canvas.toDataURL("image/png");
+        cards.push(`
+          <div style="width: 450px; padding: 10px; border: 1px solid #eee; margin: 5px; display: inline-block; page-break-inside: avoid; border-radius: 12px; background: #fff; overflow: hidden;">
+            <img src="${dataUrl}" style="width: 100%; display: block;" />
+          </div>
+        `);
+      }
+    }
+
     printWindow.document.write(`
       <html>
-        <head><title>Print Stickers</title></head>
-        <body style="margin:0; padding: 20px; background: #f8fafc; text-align: center;">
-          <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;">${cardsHtml}</div>
-          <script>window.onload = () => { setTimeout(() => { window.print(); window.close(); }, 700); };</script>
+        <head><title>Print Stickers - ${brand}</title></head>
+        <body style="margin:0; padding: 10px; background: #f8fafc; text-align: center;">
+          <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 5px;">${cards.join('')}</div>
+          <script>window.onload = () => { setTimeout(() => { window.print(); window.close(); }, 1000); };</script>
         </body>
       </html>
     `);
@@ -730,53 +845,25 @@ function QRManagement() {
         metadata: { qrIds: validIds, type: 'zip_package' }
       });
 
-      const folder = zip.folder("SAFE_TAG_STICKERS");
-      const brand = "SAFE-TAG";
+      const folder = zip.folder("MYPARK_TAG_STICKERS");
 
       for (const id of validIds) {
         const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        if (!ctx) continue;
-
-        const size = 600;
-        const padding = 60;
-        const header = 120;
-        const footer = 100;
-
-        canvas.width = size + (padding * 2);
-        canvas.height = size + header + footer + (padding * 2);
-
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        ctx.fillStyle = '#1E293B';
-        ctx.font = 'black 60px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(brand, canvas.width / 2, padding + 70);
-
-        ctx.fillStyle = '#64748B';
-        ctx.font = 'bold 24px sans-serif';
-        ctx.fillText("SMART VEHICLE TAG", canvas.width / 2, padding + 110);
-
         const qrSrc = document.getElementById(`qr-src-${id}`)?.querySelector('canvas');
+        
         if (qrSrc) {
-          ctx.drawImage(qrSrc, padding, padding + header, size, size);
-        }
-
-        ctx.fillStyle = '#3B82F6';
-        ctx.font = '900 45px monospace';
-        ctx.fillText(id, canvas.width / 2, canvas.height - padding - 20);
-
-        const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
-        if (blob && folder) {
-          folder.file(`${brand}_${id}.png`, blob);
+          await drawBrandedQR(canvas, id, qrSrc);
+          const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+          if (blob && folder) {
+            folder.file(`MyParkSaathi_${id}.png`, blob);
+          }
         }
       }
 
       const content = await zip.generateAsync({ type: "blob" });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(content);
-      link.download = `SAFE_TAG_NODES_PNG_${Date.now()}.zip`;
+      link.download = `MYPARK_TAG_NODES_PNG_${Date.now()}.zip`;
       link.click();
     } catch (err) {
       console.error("Download error:", err);

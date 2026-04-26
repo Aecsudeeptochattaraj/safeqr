@@ -8,8 +8,6 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { db } from '../lib/firebase';
-import { processImageClientSide } from '../lib/imageProcessor';
-import { GoogleGenAI } from '@google/genai';
 import { QRCodeSVG } from 'qrcode.react';
 import { 
   doc, setDoc, serverTimestamp, collection, query, where, getDocs, updateDoc,
@@ -18,6 +16,7 @@ import {
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRInventory } from '../types';
+import { scanVehicleDetails } from '../lib/gemini';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -69,10 +68,18 @@ export default function PartnerOnboarding() {
       formDataToSend.append('screenshot', screenshot);
       formDataToSend.append('transactionId', transactionId);
       formDataToSend.append('userId', syntheticOwnerUid);
-      formDataToSend.append('amount', (formData.plan === '5yr' ? 1000 : (formData.plan === '2yr' ? 500 : 250)).toString());
 
-      console.log(`[FRONTEND-TRACE] Dispatching Partner POST to /api/submitPayment`);
-      const scrubbedImage = await processImageClientSide(screenshot);
+      const apiResponse = await fetch('/api/submitPayment', {
+        method: 'POST',
+        body: formDataToSend
+      });
+
+      if (!apiResponse.ok) {
+        const errorData = await apiResponse.json();
+        throw new Error(errorData.message || 'Payment processing failed');
+      }
+
+      const { scrubbedImage } = await apiResponse.json();
 
       const paymentRef = doc(db, 'payments', transactionId);
       await setDoc(paymentRef, {
@@ -240,31 +247,19 @@ export default function PartnerOnboarding() {
     if (!file) return;
 
     setIsAiScanning(true);
+    setApiError(null);
     try {
-      const apiKey = process.env.GEMINI_API_KEY || '';
-      const ai = new GoogleGenAI({ apiKey });
-      
       const reader = new FileReader();
-      const base64Data = await new Promise<string>((resolve) => {
-        reader.onload = () => resolve((reader.result as string).split(',')[1]);
-        reader.readAsDataURL(file);
+      const base64Promise = new Promise<string>((resolve) => {
+        reader.onload = (e) => {
+          const res = e.target?.result as string;
+          resolve(res.split(',')[1]);
+        };
       });
+      reader.readAsDataURL(file);
+      const base64 = await base64Promise;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: {
-          parts: [
-            { text: `Extract technical vehicle details from this image. 
-              Return a JSON object with keys: plate (the number), brand (KIA, HYUNDAI, etc), color (RED, WHITE, etc), and type (CAR, BIKE).
-              If not visible, use value "NOT_FOUND".` 
-            },
-            { inlineData: { mimeType: file.type, data: base64Data } }
-          ]
-        }
-      });
-
-      const raw = response.text?.replace(/```json|```/g, '').trim() || '{}';
-      const extracted = JSON.parse(raw);
+      const extracted = await scanVehicleDetails(base64);
       
       setFormData(prev => ({ 
         ...prev, 
@@ -275,6 +270,7 @@ export default function PartnerOnboarding() {
       }));
     } catch (err) {
       console.error('AI Scan failed:', err);
+      setApiError('Auto-scan failed. Please enter details manually.');
     } finally {
       setIsAiScanning(false);
     }
@@ -311,7 +307,7 @@ export default function PartnerOnboarding() {
       ctx.fillStyle = '#1E293B';
       ctx.font = 'black 60px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText("SAFE-TAG", canvas.width / 2, padding + 70);
+      ctx.fillText("MyParkSaathi", canvas.width / 2, padding + 70);
 
       // Subtitle
       ctx.fillStyle = '#64748B';
@@ -328,7 +324,7 @@ export default function PartnerOnboarding() {
 
       const pngFile = canvas.toDataURL("image/png");
       const downloadLink = document.createElement("a");
-      downloadLink.download = `SAFE_TAG_${formData.selectedQrId}.png`;
+      downloadLink.download = `MYPARK_TAG_${formData.selectedQrId}.png`;
       downloadLink.href = pngFile;
       downloadLink.click();
     };
@@ -595,7 +591,7 @@ export default function PartnerOnboarding() {
                 <div className="flex justify-center mb-8">
                   <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 relative group">
                     <img 
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=sudeepto84-4@okicici&pn=SafeQR&am=${formData.plan === '5yr' ? 1000 : (formData.plan === '2yr' ? 500 : 250)}&cu=INR`}
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=sudeepto84-4@okicici&pn=MyParkSaathi&am=${formData.plan === '5yr' ? 1000 : (formData.plan === '2yr' ? 500 : 250)}&cu=INR`}
                       alt="Payment QR"
                       className="w-48 h-48 rounded-xl mix-blend-multiply transition-transform group-hover:scale-105"
                     />
