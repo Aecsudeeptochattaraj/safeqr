@@ -14,7 +14,7 @@ During the Vercel import process, you MUST add these environment variables in th
 
 | Variable | Value | Description |
 |----------|-------|-------------|
-| `GEMINI_API_KEY` | `YOUR_KEY` | Obtained from [Google AI Studio](https://aistudio.google.com/app/apikey) |
+| `GEMINI_API_KEY` | `YOUR_KEY` | Obtained from Gemini API dashboard |
 | `VITE_APP_URL` | `https://your-app.vercel.app` | Your final Vercel URL (important for QR generation) |
 
 ## 🚨 IMPORTANT: Authorize your Vercel Domain

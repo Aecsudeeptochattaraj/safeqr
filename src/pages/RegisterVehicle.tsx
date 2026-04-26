@@ -78,6 +78,18 @@ export default function RegisterVehicle() {
   const handleNext = () => setStep(s => s + 1);
   const handleBack = () => setStep(s => s - 1);
 
+  const handleScreenshotChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    if (file && file.size > 8 * 1024 * 1024) { // 8MB limit
+      setApiError('Screenshot too large. Please use a file smaller than 8MB.');
+      setScreenshot(null);
+      e.target.value = '';
+      return;
+    }
+    setScreenshot(file);
+    if (file) setApiError(null);
+  };
+
   const submitPayment = async () => {
     if (!transactionId || !screenshot) {
       setApiError('Please provide both the Transaction ID and a screenshot.');
@@ -97,12 +109,26 @@ export default function RegisterVehicle() {
         body: formDataToSend
       });
 
-      if (!apiResponse.ok) {
-        const errorData = await apiResponse.json();
-        throw new Error(errorData.message || 'Payment processing failed');
+      let errorData: any = null;
+      const responseText = await apiResponse.text();
+      
+      try {
+        if (responseText) {
+          errorData = JSON.parse(responseText);
+        }
+      } catch (e) {
+        console.error("Failed to parse server response:", responseText);
       }
 
-      const { scrubbedImage } = await apiResponse.json();
+      if (!apiResponse.ok) {
+        throw new Error(errorData?.message || errorData?.error || `Server responded with ${apiResponse.status}: ${responseText.substring(0, 50)}`);
+      }
+
+      if (!errorData) {
+        throw new Error("Empty success response from server");
+      }
+
+      const { scrubbedImage } = errorData;
 
       // Continue with Firestore storage
       const vehicleRef = doc(collection(db, 'vehicles'));
@@ -382,7 +408,7 @@ export default function RegisterVehicle() {
                    <input 
                      type="file"
                      accept="image/*"
-                     onChange={(e) => setScreenshot(e.target.files?.[0] || null)}
+                     onChange={handleScreenshotChange}
                      className="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 outline-none font-medium text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 file:cursor-pointer"
                    />
                  </div>
