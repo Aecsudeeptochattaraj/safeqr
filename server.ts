@@ -168,6 +168,8 @@ apiRouter.get('/test', (req, res) => res.json({ status: 'active', ts: Date.now()
 
 // Register API Router
 app.use('/api', apiRouter);
+// Also support root-level matching for proxied environments like Vercel
+app.use('/', apiRouter);
 
 // Strict 404 for any other /api calls to prevent HTML fallback
 app.all('/api/*', (req, res) => {
@@ -209,20 +211,32 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 });
 
 // Export for Vercel
+export { app }; 
 export default app;
 
 // Initial setup and listen
 async function bootstrap() {
-  await setupVite();
-  
-  // Only listen if not on Vercel (Cloud Run / Local)
+  // Only setup Vite in non-Vercel environments (Local/Cloud Run)
   if (!process.env.VERCEL) {
+    await setupVite();
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`[BOOT] Server ready on port ${PORT} (Env: ${process.env.NODE_ENV || 'development'})`);
     });
+  } else {
+    // On Vercel, we don't need Vite server, but we might need to serve static files
+    // The 'setupVite' call for production mode is handled by the Vercel rewrite to 'index.html'
+    // but just in case we are running the function:
+    if (process.env.NODE_ENV === "production") {
+       const distPath = path.join(process.cwd(), 'dist');
+       app.use(express.static(distPath));
+    }
   }
 }
 
-bootstrap().catch(err => {
-  console.error("[FATAL] Server failed to start:", err);
-});
+// Only execute bootstrap if we are NOT on Vercel
+// On Vercel, the function is started by the platform importing the default export
+if (!process.env.VERCEL) {
+  bootstrap().catch(err => {
+    console.error("[FATAL] Server failed to start:", err);
+  });
+}
