@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { auth, db } from '../lib/firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { AppUser } from '../types';
 
 export function useAuth() {
@@ -13,6 +13,7 @@ export function useAuth() {
     let unsubscribeProfile: (() => void) | null = null;
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      console.log('Auth state changed:', firebaseUser?.email);
       setUser(firebaseUser);
       
       if (unsubscribeProfile) {
@@ -20,41 +21,52 @@ export function useAuth() {
         unsubscribeProfile = null;
       }
 
-      if (firebaseUser) {
-        // Real-time listener for profile data
-        unsubscribeProfile = onSnapshot(doc(db, 'users', firebaseUser.uid), async (docSnap) => {
-          if (docSnap.exists()) {
-            const data = docSnap.data() as AppUser;
-            if (firebaseUser.email === 'aecsudeepto80@gmail.com' && data.role !== 'admin') {
-               await setDoc(doc(db, 'users', firebaseUser.uid), { ...data, role: 'admin' }, { merge: true });
-               data.role = 'admin';
-            }
-            setProfile(data);
-            setLoading(false);
-          } else {
-            // New user registration flow
-            try {
-              const isSuperAdmin = firebaseUser.email === 'aecsudeepto80@gmail.com';
-              const newProfile: AppUser = {
-                uid: firebaseUser.uid,
-                email: firebaseUser.email || '',
-                displayName: firebaseUser.displayName || 'User',
-                role: isSuperAdmin ? 'admin' : 'user',
-                createdAt: serverTimestamp(),
-              };
-              await setDoc(doc(db, 'users', firebaseUser.uid), newProfile);
-              // The next snapshot will catch this created document
-            } catch (err) {
-              console.error('Initial profile creation failed:', err);
-              setLoading(false);
-            }
-          }
-        }, (error) => {
-          console.error('Profile listener error:', error);
-          setLoading(false);
-        });
-      } else {
+      if (!firebaseUser) {
         setProfile(null);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const userRef = doc(db, 'users', firebaseUser.uid);
+        
+        // Initial fetch to speed up first paint and handle new user registration
+        const docSnap = await getDoc(userRef);
+        
+        if (!docSnap.exists()) {
+          console.log('Creating new user profile...');
+          const isSuperAdmin = firebaseUser.email === 'aecsudeepto80@gmail.com';
+          const newProfile: AppUser = {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email || '',
+            displayName: firebaseUser.displayName || 'User',
+            role: isSuperAdmin ? 'admin' : 'user',
+            createdAt: serverTimestamp(),
+          };
+          await setDoc(userRef, newProfile);
+          setProfile(newProfile);
+        } else {
+          const data = docSnap.data() as AppUser;
+          // Auto-upgrade developer email to admin if not already
+          if (firebaseUser.email === 'aecsudeepto80@gmail.com' && data.role !== 'admin') {
+             await setDoc(userRef, { role: 'admin' }, { merge: true });
+             data.role = 'admin';
+          }
+          setProfile(data);
+        }
+
+        // Now setup real-time listener for updates (e.g. role changes, profile edits)
+        unsubscribeProfile = onSnapshot(userRef, (snap) => {
+          if (snap.exists()) {
+            setProfile(snap.data() as AppUser);
+          }
+        }, (err) => {
+          console.error('Profile snapshot error:', err);
+        });
+
+        setLoading(false);
+      } catch (err) {
+        console.error('Error fetching/creating profile:', err);
         setLoading(false);
       }
     });

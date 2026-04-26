@@ -31,9 +31,9 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" />} />
-            <Route path="/dashboard" element={user ? <Dashboard /> : <Navigate to="/login" />} />
-            <Route path="/register-vehicle" element={user ? <RegisterVehicle /> : <Navigate to="/login" />} />
-            <Route path="/partner/onboard" element={user ? <PartnerOnboarding /> : <Navigate to="/login" />} />
+            <Route path="/dashboard" element={user ? <Dashboard /> : <Navigate to="/" />} />
+            <Route path="/register-vehicle" element={user ? <RegisterVehicle /> : <Navigate to="/" />} />
+            <Route path="/partner/onboard" element={user ? <PartnerOnboarding /> : <Navigate to="/" />} />
             <Route path="/s/:id" element={<PublicScan />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>

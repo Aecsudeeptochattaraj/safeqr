@@ -1,4 +1,4 @@
-import { signInWithRedirect } from 'firebase/auth';
+import { signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
 import { Shield, ArrowRight } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -6,7 +6,7 @@ import { motion } from 'motion/react';
 export default function Login() {
   const handleLogin = async () => {
     try {
-      await signInWithRedirect(auth, googleProvider);
+      await signInWithPopup(auth, googleProvider);
     } catch (error) {
       console.error('Login failed:', error);
     }
