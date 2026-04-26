@@ -45,7 +45,7 @@ export interface Vehicle {
   emergencyContact: string;
   planId: '1yr' | '2yr' | '5yr';
   subscriptionExpiry: any; // Timestamp
-  status: 'active' | 'expired' | 'pending';
+  status: 'active' | 'expired' | 'pending' | 'pending_verification';
   isDeleted: boolean;
   imageUrl?: string;
   createdAt: any;

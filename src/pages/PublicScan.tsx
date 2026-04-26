@@ -94,7 +94,11 @@ export default function PublicScan() {
             if (vDoc.exists()) {
               const vData = vDoc.data() as Vehicle;
               if (vData.status !== 'active') {
-                setError('This safety terminal is currently awaiting administrative activation. Please check back later.');
+                const isPending = vData.status === 'pending_verification';
+                setError(isPending 
+                  ? 'Registration is currently in PENDING APPROVAL status. Access to safety contact will be granted once the mapping is verified by admin.'
+                  : 'This safety terminal is currently awaiting administrative activation. Please check back later.'
+                );
                 setLoading(false);
                 return;
               }
@@ -115,7 +119,11 @@ export default function PublicScan() {
         if (directDoc.exists()) {
           const vData = directDoc.data() as Vehicle;
           if (vData.status !== 'active') {
-            setError('This safety terminal is currently awaiting administrative activation. Please check back later.');
+            const isPending = vData.status === 'pending_verification';
+            setError(isPending 
+              ? 'Registration is currently in PENDING APPROVAL status. Access to safety contact will be granted once the mapping is verified by admin.'
+              : 'This safety terminal is currently awaiting administrative activation. Please check back later.'
+            );
             setLoading(false);
             return;
           }

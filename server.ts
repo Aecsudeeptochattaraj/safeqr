@@ -182,15 +182,21 @@ async function setupVite() {
   }
 }
 
-// Initial setup call
-setupVite();
-
 // Export for Vercel
 export default app;
 
-// Local listen fallback
-if (process.env.NODE_ENV !== "production") {
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[BOOT] Dev server on http://localhost:${PORT}`);
-  });
+// Initial setup and listen
+async function bootstrap() {
+  await setupVite();
+  
+  // Only listen if not on Vercel (Cloud Run / Local)
+  if (!process.env.VERCEL) {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`[BOOT] Server ready on port ${PORT} (Env: ${process.env.NODE_ENV || 'development'})`);
+    });
+  }
 }
+
+bootstrap().catch(err => {
+  console.error("[FATAL] Server failed to start:", err);
+});

@@ -12,8 +12,10 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 });
 
-// 1. HARDENED API LAYER
-app.post('/api/submitPayment', upload.single('screenshot'), async (req, res) => {
+// Support both prefixed and non-prefixed routes for Vercel rewrites
+const router = express.Router();
+
+router.post('/submitPayment', upload.single('screenshot'), async (req, res) => {
   console.log("[SECURITY-NODE] Incoming Submission...");
   
   try {
@@ -49,8 +51,7 @@ app.post('/api/submitPayment', upload.single('screenshot'), async (req, res) => 
   }
 });
 
-// --- AI SCANNING PROXIES ---
-app.post('/api/scanPlate', upload.single('image'), async (req, res) => {
+router.post('/scanPlate', upload.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'IMAGE_REQUIRED' });
     
@@ -94,7 +95,7 @@ app.post('/api/scanPlate', upload.single('image'), async (req, res) => {
   }
 });
 
-app.post('/api/scanVehicleDetails', upload.single('image'), async (req, res) => {
+router.post('/scanVehicleDetails', upload.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'IMAGE_REQUIRED' });
     
@@ -147,6 +148,9 @@ app.post('/api/scanVehicleDetails', upload.single('image'), async (req, res) => 
   }
 });
 
-app.get('/api/test', (req, res) => res.json({ status: 'active', ts: Date.now() }));
+router.get('/test', (req, res) => res.json({ status: 'active', ts: Date.now() }));
+
+app.use('/api', router);
+app.use('/', router);
 
 export default app;

@@ -95,7 +95,7 @@ export default function PartnerDashboard() {
     
     for (const id of selectedIds) {
       const canvas = document.createElement('canvas');
-      const qrSrc = document.getElementById(`qr-src-${id}`)?.querySelector('canvas');
+      const qrSrc = document.getElementById(`qr-src-hidden-${id}`)?.querySelector('canvas');
       if (qrSrc) {
         await drawBrandedQR(canvas, id, qrSrc);
         const dataUrl = canvas.toDataURL("image/png");
@@ -124,17 +124,15 @@ export default function PartnerDashboard() {
 
     const qVehicles = query(collection(db, 'vehicles'), where('partnerUid', '==', user.uid));
     const unsubVehicles = onSnapshot(qVehicles, snap => {
-      const allDocs = snap.docs.map(doc => doc.data() as Vehicle);
-      // Only show and calculate commission for APPROVED (active) vehicles
-      const activeDocs = allDocs.filter(v => v.status === 'active');
-      
-      setVehicles(activeDocs);
+      const allDocs = snap.docs.map(doc => ({ ...doc.data(), id: doc.id } as Vehicle));
+      setVehicles(allDocs);
       
       let earnings = 0;
-      activeDocs.forEach(v => {
+      // Only count earnings for active vehicles
+      allDocs.filter(v => v.status === 'active').forEach(v => {
         earnings += v.planId === '5yr' ? 200 : (v.planId === '2yr' ? 100 : 50);
       });
-      setStats(prev => ({ ...prev, mappedVehicles: activeDocs.length, earnings }));
+      setStats(prev => ({ ...prev, mappedVehicles: allDocs.length, earnings }));
     }, (err) => console.error("Vehicles Stream Error:", err));
 
     const qStock = query(collection(db, 'qr_inventory'), where('partnerUid', '==', user.uid));
@@ -165,7 +163,7 @@ export default function PartnerDashboard() {
       
       for (const item of available) {
         const canvas = document.createElement('canvas');
-        const qrSrc = document.getElementById(`qr-src-${item.id}`)?.querySelector('canvas');
+        const qrSrc = document.getElementById(`qr-src-hidden-${item.id}`)?.querySelector('canvas');
         
         if (qrSrc) {
           await drawBrandedQR(canvas, item.id, qrSrc);
@@ -245,39 +243,77 @@ export default function PartnerDashboard() {
                 <h2 className="text-sm font-black text-slate-900 uppercase tracking-tighter">Live Registration Ledger</h2>
              </div>
              
-             <div className="overflow-x-auto">
+              <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                    <thead className="bg-white text-slate-400 font-black uppercase text-[9px] tracking-[0.2em] border-b border-slate-100">
                       <tr>
                          <th className="px-8 py-5">Vehicle Identity</th>
                          <th className="px-8 py-5">Customer Name</th>
-                         <th className="px-8 py-5">Plan Selected</th>
+                         <th className="px-8 py-5">Status</th>
+                         <th className="px-8 py-5">Plan</th>
                          <th className="px-8 py-5 text-right">Yield</th>
-                          <th className="px-8 py-5 text-right font-black">Manage</th>
-                          <th className="px-8 py-5 text-right uppercase tracking-[0.15em] font-black">Control</th>
+                         <th className="px-8 py-5 text-right uppercase tracking-[0.15em] font-black">Control</th>
                       </tr>
                    </thead>
                    <tbody className="divide-y divide-slate-100">
                       {vehicles.map((v, i) => (
-                        <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="px-8 py-6 font-black font-mono text-slate-900 text-lg tracking-tighter">{v.vehicleNumber}</td>
-                          <td className="px-8 py-6 text-slate-600 font-bold uppercase text-[11px]">{v.ownerName}</td>
+                        <tr key={i} className="hover:bg-slate-50/50 transition-colors text-[11px]">
+                          <td className="px-8 py-6 font-black font-mono text-slate-900 text-base tracking-tighter">{v.vehicleNumber}</td>
+                          <td className="px-8 py-6 text-slate-600 font-bold uppercase">{v.ownerName}</td>
                           <td className="px-8 py-6">
                             <span className={cn(
-                               "px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest",
+                               "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest",
+                               v.status === 'active' ? "bg-green-100 text-green-700" : 
+                               v.status === 'pending_verification' ? "bg-amber-100 text-amber-700 animate-pulse" : 
+                               "bg-slate-100 text-slate-700"
+                            )}>
+                               {v.status?.replace('_', ' ') || 'Pending'}
+                            </span>
+                          </td>
+                          <td className="px-8 py-6">
+                            <span className={cn(
+                               "px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest",
                                v.planId === '5yr' ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-700"
                             )}>
                                {v.planId === '5yr' ? '5 Years' : (v.planId === '2yr' ? '2 Years' : '1 Year')}
                             </span>
                           </td>
-                          <td className="px-8 py-6 text-right font-black text-green-600 text-lg">
+                          <td className="px-8 py-6 text-right font-black text-slate-400">
                              ₹{v.planId === '5yr' ? 200 : (v.planId === '2yr' ? 100 : 50)}
+                          </td>
+                          <td className="px-8 py-4 text-right">
+                             <div className="flex justify-end gap-2">
+                               <button 
+                                 onClick={async () => {
+                                   const canvas = document.createElement('canvas');
+                                   const qrSrc = document.getElementById(`qr-src-hidden-${v.qrId}`)?.querySelector('canvas');
+                                   if (qrSrc) {
+                                     await drawBrandedQR(canvas, v.qrId!, qrSrc);
+                                     const link = document.createElement("a");
+                                     link.href = canvas.toDataURL("image/png");
+                                     link.download = `ParkSaathi_${v.vehicleNumber}.png`;
+                                     link.click();
+                                   }
+                                 }}
+                                 className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all shadow-sm"
+                                 title="Download QR Sticker"
+                               >
+                                 <Download className="w-4 h-4" />
+                               </button>
+                               <button 
+                                 onClick={() => terminateRegistration(v.id, v.qrId)}
+                                 className="p-2 bg-slate-100 text-red-600 rounded-lg hover:bg-red-600 hover:text-white transition-all shadow-sm"
+                                 title="Terminate Mapping"
+                               >
+                                 <ShieldX className="w-4 h-4" />
+                               </button>
+                             </div>
                           </td>
                         </tr>
                       ))}
                       {vehicles.length === 0 && (
                         <tr>
-                          <td colSpan={4} className="px-8 py-16 text-center text-slate-400">
+                          <td colSpan={6} className="px-8 py-16 text-center text-slate-400">
                              <div className="max-w-xs mx-auto">
                                 <Car className="w-12 h-12 text-slate-200 mx-auto mb-4" />
                                 <p className="text-[10px] font-black uppercase tracking-widest leading-loose">No active registrations detected.</p>
@@ -309,9 +345,16 @@ export default function PartnerDashboard() {
              
              {/* Hidden QR Source for Canvas Export */}
              <div className="hidden">
+               {/* Available Stock */}
                {myStock.filter(s => s.status === 'available').map(item => (
-                 <div key={item.id} id={`qr-src-${item.id}`}>
+                 <div key={item.id} id={`qr-src-hidden-${item.id}`}>
                     <QRCodeCanvas value={`${window.location.origin}/s/${item.id}`} size={600} />
+                 </div>
+               ))}
+               {/* Mapped Vehicles */}
+               {vehicles.map(v => (
+                 <div key={v.qrId} id={`qr-src-hidden-${v.qrId}`}>
+                    <QRCodeCanvas value={`${window.location.origin}/s/${v.qrId}`} size={600} />
                  </div>
                ))}
              </div>

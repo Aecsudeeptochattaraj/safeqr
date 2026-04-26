@@ -8,7 +8,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { db } from '../lib/firebase';
-import { QRCodeSVG } from 'qrcode.react';
+import { QRCodeCanvas } from 'qrcode.react';
+import { drawBrandedQR } from '../lib/qrBranding';
 import { 
   doc, setDoc, serverTimestamp, collection, query, where, getDocs, updateDoc,
   runTransaction, onSnapshot, orderBy, limit
@@ -278,55 +279,18 @@ export default function PartnerOnboarding() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const downloadQR = () => {
-    const qrSrc = document.getElementById(`success-qr`)?.querySelector('svg');
+  const downloadQR = async () => {
+    const qrSrc = document.getElementById(`success-qr`)?.querySelector('canvas');
     if (!qrSrc) return;
     
-    const svgData = new XMLSerializer().serializeToString(qrSrc);
     const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    await drawBrandedQR(canvas, formData.selectedQrId, qrSrc as HTMLCanvasElement);
 
-    const size = 600;
-    const padding = 60;
-    const header = 120;
-    const footer = 100;
-
-    canvas.width = size + (padding * 2);
-    canvas.height = size + header + footer + (padding * 2);
-
-    const img = new Image();
-    img.onload = () => {
-      // Background
-      ctx.fillStyle = "white";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // Brand
-      ctx.fillStyle = '#1E293B';
-      ctx.font = 'black 60px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText("MyParkSaathi", canvas.width / 2, padding + 70);
-
-      // Subtitle
-      ctx.fillStyle = '#64748B';
-      ctx.font = 'bold 24px sans-serif';
-      ctx.fillText("SMART VEHICLE TAG", canvas.width / 2, padding + 110);
-
-      // QR
-      ctx.drawImage(img, padding, padding + header, size, size);
-
-      // ID
-      ctx.fillStyle = '#3B82F6';
-      ctx.font = '900 45px monospace';
-      ctx.fillText(formData.selectedQrId, canvas.width / 2, canvas.height - padding - 20);
-
-      const pngFile = canvas.toDataURL("image/png");
-      const downloadLink = document.createElement("a");
-      downloadLink.download = `MYPARK_TAG_${formData.selectedQrId}.png`;
-      downloadLink.href = pngFile;
-      downloadLink.click();
-    };
-    img.src = "data:image/svg+xml;base64," + btoa(svgData);
+    const pngFile = canvas.toDataURL("image/png");
+    const downloadLink = document.createElement("a");
+    downloadLink.download = `ParkSaathi_${formData.selectedQrId}.png`;
+    downloadLink.href = pngFile;
+    downloadLink.click();
   };
 
   return (
@@ -664,7 +628,7 @@ export default function PartnerOnboarding() {
                      "bg-white p-6 rounded-2xl shadow-sm inline-block border border-slate-200 mb-6 transition-all duration-500",
                      !paymentVerified && "opacity-30 grayscale blur-[4px]"
                    )}>
-                      <QRCodeSVG 
+                      <QRCodeCanvas 
                         id="success-qr"
                         value={`${window.location.origin}/s/${formData.selectedQrId}`} 
                         size={180}
