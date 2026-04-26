@@ -16,7 +16,6 @@ import {
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRInventory } from '../types';
-import { scanVehicleDetails } from '../lib/gemini';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -249,17 +248,16 @@ export default function PartnerOnboarding() {
     setIsAiScanning(true);
     setApiError(null);
     try {
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve) => {
-        reader.onload = (e) => {
-          const res = e.target?.result as string;
-          resolve(res.split(',')[1]);
-        };
-      });
-      reader.readAsDataURL(file);
-      const base64 = await base64Promise;
+      const fd = new FormData();
+      fd.append('image', file);
 
-      const extracted = await scanVehicleDetails(base64);
+      const response = await fetch('/api/scanVehicleDetails', {
+        method: 'POST',
+        body: fd
+      });
+
+      if (!response.ok) throw new Error('AI Scan failed on server');
+      const extracted = await response.json();
       
       setFormData(prev => ({ 
         ...prev, 

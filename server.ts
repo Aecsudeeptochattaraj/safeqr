@@ -83,7 +83,7 @@ async function startServer() {
         .toBuffer();
 
       const result = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-1.5-flash",
         contents: [{
           role: 'user',
           parts: [
@@ -98,7 +98,7 @@ async function startServer() {
         }]
       });
 
-      const text = result.text?.trim() || '';
+      const text = result.response.text()?.trim() || '';
       res.json({ vehicleNumber: text === 'NOT_FOUND' ? '' : text });
     } catch (err: any) {
       console.error("[SCAN-NODE] AI Error:", err);
@@ -121,7 +121,7 @@ async function startServer() {
         .toBuffer();
 
       const result = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "gemini-1.5-flash",
         contents: [{
           role: 'user',
           parts: [
@@ -139,7 +139,8 @@ async function startServer() {
         }]
       });
 
-      const text = result.text?.replace(/```json|```/g, '').trim() || '{}';
+      let text = result.response.text()?.trim() || '{}';
+      text = text.replace(/```json|```/g, '').trim();
       try {
         const json = JSON.parse(text);
         res.json(json);

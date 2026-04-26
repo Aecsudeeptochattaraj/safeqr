@@ -8,8 +8,6 @@ import { doc, setDoc, serverTimestamp, collection, query, where, orderBy, limit,
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
-import { scanNumberPlate } from '../lib/gemini';
-
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
@@ -41,24 +39,26 @@ export default function RegisterVehicle() {
     setIsAiScanning(true);
     setApiError(null);
     try {
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve) => {
-        reader.onload = (e) => {
-          const res = e.target?.result as string;
-          resolve(res.split(',')[1]); // Only the data part
-        };
-      });
-      reader.readAsDataURL(file);
-      const base64 = await base64Promise;
+      const fd = new FormData();
+      fd.append('image', file);
 
-      const plateNumber = await scanNumberPlate(base64);
+      const response = await fetch('/api/scanPlate', {
+        method: 'POST',
+        body: fd
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.details || 'AI Scan failed on server');
+      }
       
-      if (plateNumber) {
-        setFormData(prev => ({ ...prev, vehicleNumber: plateNumber.toUpperCase() }));
+      const data = await response.json();
+      if (data.vehicleNumber) {
+        setFormData(prev => ({ ...prev, vehicleNumber: data.vehicleNumber.toUpperCase() }));
       } else {
         setApiError('Auto-scan could not detect a plate number. Please enter it manually.');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('AI Scan failed:', err);
       setApiError('Auto-scan failed. Please enter the number manually.');
     } finally {
