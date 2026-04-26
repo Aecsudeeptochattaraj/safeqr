@@ -23,7 +23,6 @@ export default function RegisterVehicle() {
     phone: '',
     whatsapp: '',
     emergencyContact: '',
-    qrId: '', // Optional physical tag ID
     planId: '2yr' as '2yr' | '5yr'
   });
 
@@ -136,27 +135,11 @@ export default function RegisterVehicle() {
       const expiryDate = new Date();
       expiryDate.setFullYear(expiryDate.getFullYear() + (formData.planId === '5yr' ? 5 : 2));
 
-      // Handle QR Inventory update if qrId provided
-      if (formData.qrId) {
-        const qrRef = doc(db, 'qr_inventory', formData.qrId);
-        const qrSnap = await getDoc(qrRef);
-        if (qrSnap.exists()) {
-          const qrData = qrSnap.data();
-          if (qrData.status === 'available') {
-            await updateDoc(qrRef, {
-              status: 'assigned',
-              mappedVehicleId: vehicleRef.id,
-              updatedAt: serverTimestamp()
-            });
-          }
-        }
-      }
-
       await setDoc(vehicleRef, {
         id: vehicleRef.id,
         ownerUid: user?.uid,
         ...formData,
-        qrId: formData.qrId || null,
+        qrId: null,
         status: 'pending_verification',
         subscriptionExpiry: expiryDate,
         createdAt: serverTimestamp(),
@@ -307,24 +290,6 @@ export default function RegisterVehicle() {
                     />
                   </div>
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-slate-700 ml-1 flex items-center justify-between">
-                  <span>Physical Tag ID</span>
-                  <span className="text-[10px] font-black uppercase text-amber-500 bg-amber-50 px-2 py-0.5 rounded italic">Optional</span>
-                </label>
-                <div className="relative group">
-                  <QrCode className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-blue-600 transition-colors" />
-                  <input 
-                    name="qrId"
-                    value={formData.qrId}
-                    onChange={(e) => setFormData({...formData, qrId: e.target.value.toUpperCase()})}
-                    placeholder="e.g. MPS-12345"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-12 pr-4 focus:ring-2 focus:ring-blue-500 focus:bg-white focus:border-blue-500 outline-none font-bold uppercase text-slate-900"
-                  />
-                </div>
-                <p className="text-[10px] text-slate-400 font-medium ml-1">Already have a physical sticker? Enter the ID to Link it.</p>
               </div>
 
               <button 
