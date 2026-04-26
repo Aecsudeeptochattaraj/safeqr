@@ -2,11 +2,14 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Run and deploy your AI Studio app
+# MyParkSaathi - Smart Parking Solution
 
-This contains everything you need to run your app locally.
+A modern, AI-powered parking management system.
 
-View your app in AI Studio: https://ai.studio/apps/d167ec4b-9a88-4272-99d0-ebfe5e045f62
+## Performance Features
+- AI Vehicle Scanning
+- Secure Payment Verification
+- Real-time Dashboard
 
 ## Run Locally
 
