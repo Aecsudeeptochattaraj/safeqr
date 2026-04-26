@@ -27,36 +27,26 @@ app.use((req, res, next) => {
 });
 
 // 2. HARDENED API LAYER
-const apiRouter = express.Router();
-
-apiRouter.post('/submitPayment', upload.single('screenshot'), async (req, res) => {
+app.post(['/api/submitPayment', '/submitPayment'], upload.single('screenshot'), async (req, res) => {
   console.log("[SECURITY-NODE] Incoming Submission...");
-  console.log("[SECURITY-NODE] Headers:", req.headers['content-type']);
-  console.log("[SECURITY-NODE] Body keys:", Object.keys(req.body || {}));
   
   try {
     const { transactionId, userId } = req.body;
     if (!transactionId || !userId || !req.file) {
-      console.warn("[SECURITY-NODE] Data check failed", { transactionId, userId, file: !!req.file });
       return res.status(400).json({ error: 'DATA_MALFORMED', message: 'Transaction ID, User ID, and Screenshot are required.' });
     }
 
-    console.log(`[SECURITY-NODE] Scrubbing image: ${req.file.size} bytes`);
-    
     let processedData = '';
     try {
-      // Use sharp but with a catch to fallback to raw if native libs fail in serverless
       const buffer = await sharp(req.file.buffer)
         .resize(800, 800, { fit: 'inside' })
         .jpeg({ quality: 80 })
         .toBuffer();
       processedData = `data:image/jpeg;base64,${buffer.toString('base64')}`;
     } catch (e) {
-      console.warn("[SECURITY-NODE] Sharp processing failed, using raw fallback", e);
       processedData = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
     }
 
-    console.log("[SECURITY-NODE] Success");
     return res.status(200).json({
       success: true,
       scrubbedImage: processedData,
@@ -69,7 +59,7 @@ apiRouter.post('/submitPayment', upload.single('screenshot'), async (req, res) =
 });
 
 // --- AI SCANNING PROXIES ---
-apiRouter.post('/scanPlate', upload.single('image'), async (req, res) => {
+app.post(['/api/scanPlate', '/scanPlate'], upload.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'IMAGE_REQUIRED' });
     
@@ -90,7 +80,7 @@ apiRouter.post('/scanPlate', upload.single('image'), async (req, res) => {
     }
 
     const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-1.5-flash", 
       contents: {
         parts: [
           { text: "Extract the vehicle license plate number from this image. Only return the alphanumeric plate number, nothing else. If not found, return 'NOT_FOUND'." },
@@ -112,7 +102,7 @@ apiRouter.post('/scanPlate', upload.single('image'), async (req, res) => {
   }
 });
 
-apiRouter.post('/scanVehicleDetails', upload.single('image'), async (req, res) => {
+app.post(['/api/scanVehicleDetails', '/scanVehicleDetails'], upload.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'IMAGE_REQUIRED' });
     
@@ -133,7 +123,7 @@ apiRouter.post('/scanVehicleDetails', upload.single('image'), async (req, res) =
     }
 
     const result = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-1.5-flash",
       contents: {
         parts: [
           { text: `Extract technical vehicle details from this image. 
@@ -164,12 +154,7 @@ apiRouter.post('/scanVehicleDetails', upload.single('image'), async (req, res) =
   }
 });
 
-apiRouter.get('/test', (req, res) => res.json({ status: 'active', ts: Date.now() }));
-
-// Register API Router
-app.use('/api', apiRouter);
-// Also support root-level matching for proxied environments like Vercel
-app.use('/', apiRouter);
+app.get(['/api/test', '/test'], (req, res) => res.json({ status: 'active', ts: Date.now() }));
 
 // Strict 404 for any other /api calls to prevent HTML fallback
 app.all('/api/*', (req, res) => {
