@@ -95,3 +95,16 @@ export interface Commission {
   status: 'pending' | 'paid';
   createdAt: any;
 }
+
+export interface Feedback {
+  id?: string;
+  userUid?: string;
+  userName?: string;
+  email?: string;
+  message: string;
+  rating?: number;
+  type: 'general' | 'bug' | 'suggestion' | 'scan_issue';
+  source: 'public_scan' | 'partner_dashboard' | 'user_dashboard';
+  createdAt: any;
+  status: 'new' | 'read' | 'resolved';
+}

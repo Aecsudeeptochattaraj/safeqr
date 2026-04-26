@@ -3,7 +3,7 @@ import { db } from '../../lib/firebase';
 import { collection, query, getDocs, limit, serverTimestamp, writeBatch, doc, where, updateDoc, onSnapshot, addDoc, deleteDoc } from 'firebase/firestore';
 import { AppUser, QRInventory, LogEntry } from '../../types';
 import { useAuth } from '../../hooks/useAuth';
-import { Users, Car, Coins, ShieldCheck, QrCode, Package, Download, UserMinus, Layers, Loader2, Printer, ExternalLink, Trash2, Repeat, AlertTriangle, CheckCircle2, TrendingUp, Activity, Clock, PieChart, Info, Search, UserX, UserCheck, ShieldOff, Eye, Map as MapIcon, List, ChevronDown, LayoutDashboard } from 'lucide-react';
+import { Users, Car, Coins, ShieldCheck, QrCode, Package, Download, UserMinus, Layers, Loader2, Printer, ExternalLink, Trash2, Repeat, AlertTriangle, CheckCircle2, TrendingUp, Activity, Clock, PieChart, Info, Search, UserX, UserCheck, ShieldOff, Eye, Map as MapIcon, List, ChevronDown, LayoutDashboard, MessageSquare } from 'lucide-react';
 
 const viewConfig = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
@@ -15,6 +15,7 @@ const viewConfig = [
   { id: 'qr_management', label: 'QR Management', icon: QrCode },
   { id: 'fleet', label: 'Fleet', icon: Car },
   { id: 'projection', label: '5Y Projection', icon: TrendingUp },
+  { id: 'feedback', label: 'Feedback', icon: MessageSquare },
   { id: 'users', label: 'Users', icon: Users },
   { id: 'danger_zone', label: 'Danger Zone', icon: AlertTriangle },
 ] as const;
@@ -28,7 +29,7 @@ import {
   BarChart, Bar, Cell, Legend
 } from 'recharts';
 import { format, subDays, startOfDay, endOfDay, isWithinInterval, startOfWeek, startOfMonth } from 'date-fns';
-import { InsightsDashboard, LiveActivity, ScanTrends, AuditLogs, InventorySupplyChain, SmartInsights, FleetManagement, FinancialsManagement, FutureProjection, PaymentVerificationModule } from './InsightsComponents';
+import { InsightsDashboard, LiveActivity, ScanTrends, AuditLogs, InventorySupplyChain, SmartInsights, FleetManagement, FinancialsManagement, FutureProjection, PaymentVerificationModule, FeedbackManagement } from './InsightsComponents';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -63,7 +64,8 @@ export default function AdminDashboard() {
     scansMonth: 0,
     scanTrend: 0 
   });
-  const [view, setView] = useState<'overview' | 'insights' | 'supply_chain' | 'audit_logs' | 'qr_management' | 'fleet' | 'users' | 'financials' | 'projection' | 'payments'>('overview');
+  const [view, setView] = useState<'overview' | 'insights' | 'feedback' | 'supply_chain' | 'audit_logs' | 'qr_management' | 'fleet' | 'users' | 'financials' | 'projection' | 'payments'>('overview');
+  const [feedbacks, setFeedbacks] = useState<any[]>([]);
   const [activityLogs, setActivityLogs] = useState<LogEntry[]>([]);
   const [allLogs, setAllLogs] = useState<LogEntry[]>([]);
   const [paymentsData, setPaymentsData] = useState<any[]>([]);
@@ -153,6 +155,11 @@ export default function AdminDashboard() {
     const unsubCommissions = onSnapshot(collection(db, 'commissions'), snap => {
       setCommissionsData(snap.docs.map(d => ({ ...d.data(), id: d.id } as any)));
     });
+
+    const unsubFeedback = onSnapshot(collection(db, 'feedback'), snap => {
+      setFeedbacks(snap.docs.map(d => ({ ...d.data(), id: d.id } as any))
+        .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
+    });
     
     return () => {
       unsubUsers();
@@ -161,6 +168,7 @@ export default function AdminDashboard() {
       unsubLogs();
       unsubPayments();
       unsubCommissions();
+      unsubFeedback();
     };
   }, []);
 
@@ -379,6 +387,7 @@ export default function AdminDashboard() {
       {view === 'qr_management' && <QRManagement />}
       {view === 'fleet' && <FleetManagement vehicles={rawData.vehicles} payments={paymentsData} users={rawData.allUsers} cn={cn} logs={allLogs} />}
       {view === 'projection' && <FutureProjection />}
+      {view === 'feedback' && <FeedbackManagement feedbacks={feedbacks} />}
       {view === 'users' && <UserManagement />}
       {view === 'danger_zone' && <DangerZone />}
     </div>

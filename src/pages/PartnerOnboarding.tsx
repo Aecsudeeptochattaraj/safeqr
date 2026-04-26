@@ -638,13 +638,25 @@ export default function PartnerOnboarding() {
                    <p className="text-[10px] font-black font-mono text-slate-400 uppercase tracking-[0.4em] mb-6">NODE ID: {formData.selectedQrId}</p>
                    
                    {paymentVerified && (
-                     <button 
-                      onClick={downloadQR}
-                      className="flex items-center gap-2 mx-auto px-8 py-3 bg-slate-900 text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all hover:shadow-lg shadow-blue-200 active:scale-95"
-                     >
-                       <Download className="w-4 h-4" />
-                       Download PNG
-                     </button>
+                     <div className="flex flex-col gap-3">
+                       <button 
+                        onClick={downloadQR}
+                        className="flex items-center justify-center gap-2 mx-auto w-full max-w-[240px] px-8 py-4 bg-slate-900 text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all hover:shadow-lg shadow-blue-200 active:scale-95"
+                       >
+                         <Download className="w-4 h-4" />
+                         Download PNG
+                       </button>
+                       
+                       <a 
+                         href="https://wa.me/91XXXXXXXXXX?text=I%20have%20completed%20a%20new%20vehicle%20mapping%20on%20MyParkSaathi"
+                         target="_blank"
+                         rel="noopener noreferrer"
+                         className="flex items-center justify-center gap-2 mx-auto w-full max-w-[240px] px-8 py-4 bg-green-600 text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-green-700 transition-all hover:shadow-lg shadow-green-200 active:scale-95"
+                       >
+                         <MessageCircle className="w-4 h-4" />
+                         WhatsApp Support
+                       </a>
+                     </div>
                    )}
                 </div>
 

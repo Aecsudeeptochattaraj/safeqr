@@ -3,8 +3,14 @@ import { useParams } from 'react-router-dom';
 import { db } from '../lib/firebase';
 import { doc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Vehicle } from '../types';
-import { Phone, MessageCircle, AlertCircle, Shield, Camera, Send, CheckCircle2, RefreshCw, MapPin } from 'lucide-react';
+import { Phone, MessageCircle, AlertCircle, Shield, Camera, Send, CheckCircle2, RefreshCw, MapPin, MessageSquare, Star } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
 
 export default function PublicScan() {
   const { id } = useParams();
@@ -22,6 +28,11 @@ export default function PublicScan() {
   const [emergencySummary, setEmergencySummary] = useState({ message: '', photo: null as string | null });
   const [reportSuccess, setReportSuccess] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<{lat: number, lng: number} | null>(null);
+
+  // Feedback state
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [feedback, setFeedback] = useState({ message: '', type: 'general' as 'general' | 'bug' | 'suggestion' | 'scan_issue', rating: 5 });
+  const [feedbackSuccess, setFeedbackSuccess] = useState(false);
 
   useEffect(() => {
     // Start geolocation as early as possible
@@ -84,21 +95,28 @@ export default function PublicScan() {
 
     async function fetchVehicle() {
       if (!id) return;
+      console.log("[SCAN] Fetching node:", id);
       try {
+        // 1. Try Inventory Lookup (Physical Tag ID)
         const qrDoc = await getDoc(doc(db, 'qr_inventory', id));
         
         if (qrDoc.exists()) {
           const qrData = qrDoc.data();
-          if (qrData.status === 'assigned' && qrData.mappedVehicleId) {
+          console.log("[SCAN] Inventory profile found:", qrData.status);
+          
+          if ((qrData.status === 'assigned' || qrData.status === 'mapped') && qrData.mappedVehicleId) {
+            console.log("[SCAN] Node is mapped to vehicle:", qrData.mappedVehicleId);
             const vDoc = await getDoc(doc(db, 'vehicles', qrData.mappedVehicleId));
             if (vDoc.exists()) {
-              const vData = vDoc.data() as Vehicle;
-              if (vData.status !== 'active') {
-                const isPending = vData.status === 'pending_verification';
-                setError(isPending 
-                  ? 'Registration is currently in PENDING APPROVAL status. Access to safety contact will be granted once the mapping is verified by admin.'
-                  : 'This safety terminal is currently awaiting administrative activation. Please check back later.'
-                );
+              const vData = { ...vDoc.data(), id: vDoc.id } as Vehicle;
+              if (vData.isDeleted) {
+                setError('This safety terminal has been decommissioned.');
+                setLoading(false);
+                return;
+              }
+              // Allow both active and pending_verification for scanning
+              if (vData.status !== 'active' && vData.status !== 'pending_verification') {
+                setError('This safety terminal is currently awaiting administrative activation. Please check back later.');
                 setLoading(false);
                 return;
               }
@@ -107,23 +125,29 @@ export default function PublicScan() {
               captureScan(vData, id);
               setLoading(false);
               return;
+            } else {
+              console.warn("[SCAN] Referenced vehicle document missing");
             }
-          } else {
-            setError('This MyParkSaathi node is ready. Please map it to a vehicle via the Partner Portal to activate it.');
+          }
+          
+          // If in inventory but not mapped/assigned properly
+          setError('This MyParkSaathi node is ready but not yet mapped. Please link it to a vehicle via the Partner Portal.');
+          setLoading(false);
+          return;
+        }
+        
+        // 2. Try Direct Vehicle ID Lookup
+        console.log("[SCAN] Checking direct vehicle ID...");
+        const directDoc = await getDoc(doc(db, 'vehicles', id));
+        if (directDoc.exists()) {
+          const vData = { ...directDoc.data(), id: directDoc.id } as Vehicle;
+          if (vData.isDeleted) {
+            setError('This safety terminal has been decommissioned.');
             setLoading(false);
             return;
           }
-        }
-        
-        const directDoc = await getDoc(doc(db, 'vehicles', id));
-        if (directDoc.exists()) {
-          const vData = directDoc.data() as Vehicle;
-          if (vData.status !== 'active') {
-            const isPending = vData.status === 'pending_verification';
-            setError(isPending 
-              ? 'Registration is currently in PENDING APPROVAL status. Access to safety contact will be granted once the mapping is verified by admin.'
-              : 'This safety terminal is currently awaiting administrative activation. Please check back later.'
-            );
+          if (vData.status !== 'active' && vData.status !== 'pending_verification') {
+            setError('This safety terminal is currently awaiting administrative activation. Please check back later.');
             setLoading(false);
             return;
           }
@@ -131,13 +155,14 @@ export default function PublicScan() {
           generateCaptcha();
           captureScan(vData, id);
           setLoading(false);
-        } else {
-          setError('Safety profile not active or invalid QR node.');
-          setLoading(false);
+          return;
         }
+
+        setError('Safety profile not active or invalid QR node.');
+        setLoading(false);
       } catch (err) {
-        console.error("Public Scan Error Detail:", err);
-        setError(`Security terminal error: ${err instanceof Error ? err.message : 'Unknown Fault'}`);
+        console.error("Public Scan Critical Error:", err);
+        setError(`Security terminal communication failure: ${err instanceof Error ? err.message : 'Unknown Fault'}`);
         setLoading(false);
       }
     }
@@ -246,6 +271,30 @@ export default function PublicScan() {
     setIsReporting(false);
   };
 
+  const handleSubmitFeedback = async () => {
+    if (!feedback.message) return;
+    setLoading(true);
+    try {
+      await addDoc(collection(db, 'feedback'), {
+        ...feedback,
+        userUid: 'public',
+        userName: 'Public User',
+        source: 'public_scan',
+        vehicleId: vehicle?.id || null,
+        qrId: id || null,
+        createdAt: serverTimestamp(),
+        status: 'new'
+      });
+      setFeedbackSuccess(true);
+      setIsFeedbackOpen(false);
+      setFeedback({ message: '', type: 'general', rating: 5 });
+    } catch (err) {
+      console.error("Feedback upload error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (loading && !vehicle) {
     return (
       <div className="min-h-screen bg-slate-100 flex items-center justify-center p-8 text-slate-900 border border-slate-200">
@@ -262,7 +311,17 @@ export default function PublicScan() {
         </div>
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Oops!</h1>
         <p className="text-gray-500 mb-8">{error}</p>
-        <button onClick={() => window.location.href = '/'} className="px-8 py-3 bg-gray-900 text-white rounded-2xl font-bold">MyParkSaathi Home</button>
+        <div className="flex flex-col gap-3 w-full max-w-xs">
+          <button onClick={() => window.location.href = '/'} className="w-full px-8 py-4 bg-gray-900 text-white rounded-2xl font-bold uppercase tracking-widest text-[11px]">MyParkSaathi Home</button>
+          <a 
+            href="https://wa.me/91XXXXXXXXXX?text=I%20am%20having%20trouble%20scanning%20a%20MyParkSaathi%20node"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center justify-center gap-2 px-8 py-4 bg-green-600 text-white rounded-2xl font-bold uppercase tracking-widest text-[11px]"
+          >
+            <MessageCircle className="w-4 h-4" /> WhatsApp Support
+          </a>
+        </div>
       </div>
     );
   }
@@ -283,9 +342,22 @@ export default function PublicScan() {
                   <Shield className="w-6 h-6 text-white" />
                 </div>
                 <h1 className="text-xl font-black text-white uppercase tracking-tight">{vehicle?.vehicleNumber}</h1>
-                <p className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.2em] mt-2">Verified Terminal</p>
+                <p className={cn(
+                  "font-bold text-[10px] uppercase tracking-[0.2em] mt-2",
+                  vehicle?.status === 'pending_verification' ? "text-amber-400 animate-pulse" : "text-slate-400"
+                )}>
+                  {vehicle?.status === 'pending_verification' ? 'Awaiting Verification' : 'Verified Terminal'}
+                </p>
              </div>
           </div>
+
+          {vehicle?.status === 'pending_verification' && (
+            <div className="bg-amber-50 border-b border-amber-100 p-3 text-center">
+               <p className="text-[10px] font-black text-amber-800 uppercase tracking-widest">
+                  Mapping active but pending admin review.
+               </p>
+            </div>
+          )}
 
           {!isVerified ? (
             <div className="p-8 space-y-8">
@@ -341,7 +413,7 @@ export default function PublicScan() {
                     <div className="text-left">
                       <p className="text-xs font-bold text-slate-900 uppercase">Secure Call</p>
                       <p className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">
-                        {vehicle?.phone.slice(0, 3)}XXXX{vehicle?.phone.slice(-3)}
+                        {vehicle?.phone ? `${vehicle.phone.slice(0, 3)}XXXX${vehicle.phone.slice(-3)}` : 'MASKED'}
                       </p>
                     </div>
                   </div>
@@ -382,13 +454,31 @@ export default function PublicScan() {
                   </button>
                 )}
 
-                <div className="pt-4 border-t border-slate-100">
+                <div className="pt-4 border-t border-slate-100 flex flex-col gap-3">
                   <button 
                     onClick={() => setIsReporting(true)}
                     className="w-full flex items-center justify-center gap-3 p-4 bg-slate-900 text-white rounded text-[10px] font-bold uppercase tracking-widest hover:bg-slate-800 shadow-md transition-all active:scale-95"
                   >
                     <AlertCircle className="w-4 h-4 text-red-500" />
                     Report Emergency
+                  </button>
+
+                  <a 
+                    href="https://wa.me/91XXXXXXXXXX?text=Feedback%20on%20MyParkSaathi%20Public%20Scan%20Interface"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full flex items-center justify-center gap-3 p-4 bg-slate-100 text-slate-600 rounded text-[10px] font-bold uppercase tracking-widest hover:bg-slate-200 transition-all border border-slate-200"
+                  >
+                    <MessageCircle className="w-4 h-4 text-green-600" />
+                    WhatsApp Support
+                  </a>
+
+                  <button 
+                    onClick={() => setIsFeedbackOpen(true)}
+                    className="w-full flex items-center justify-center gap-3 p-4 bg-blue-50 text-blue-600 rounded text-[10px] font-bold uppercase tracking-widest hover:bg-blue-100 transition-all border border-blue-200"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    Share Feedback
                   </button>
                 </div>
               </div>
@@ -478,6 +568,112 @@ export default function PublicScan() {
                 className="w-full py-5 bg-white text-gray-900 rounded-2xl font-black uppercase tracking-widest hover:bg-green-50 transition-all"
               >
                 Close
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Feedback Modal */}
+      <AnimatePresence>
+        {isFeedbackOpen && (
+          <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center px-4 backdrop-blur-md bg-slate-900/60">
+            <motion.div 
+              initial={{ y: '100%', opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: '100%', opacity: 0 }}
+              className="bg-white rounded-t-3xl sm:rounded-3xl p-8 max-w-md w-full shadow-2xl border border-slate-200"
+            >
+              <div className="text-center mb-6">
+                <div className="bg-blue-50 w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-4">
+                  <MessageSquare className="w-6 h-6 text-blue-600" />
+                </div>
+                <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Share Your Experience</h3>
+                <p className="text-slate-500 text-xs mt-1 font-medium">Your feedback helps us maintain road safety standards.</p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex justify-center gap-2 mb-4">
+                   {[1, 2, 3, 4, 5].map(star => (
+                     <button 
+                      key={star} 
+                      onClick={() => setFeedback({...feedback, rating: star})}
+                      className="p-1 hover:scale-110 transition-transform"
+                     >
+                       <Star className={cn("w-8 h-8", feedback.rating >= star ? "text-amber-400 fill-amber-400" : "text-slate-200")} />
+                     </button>
+                   ))}
+                </div>
+
+                <div className="space-y-2">
+                   <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Feedback Category</p>
+                   <div className="grid grid-cols-2 gap-2">
+                      {['general', 'scan_issue', 'suggestion', 'bug'].map(t => (
+                        <button 
+                          key={t}
+                          onClick={() => setFeedback({...feedback, type: t as any})}
+                          className={cn(
+                            "py-2 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all",
+                            feedback.type === t ? "bg-slate-900 text-white border-slate-900" : "bg-slate-50 text-slate-400 border-slate-200 hover:border-slate-300"
+                          )}
+                        >
+                          {t.replace('_', ' ')}
+                        </button>
+                      ))}
+                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Comments</p>
+                  <textarea 
+                    value={feedback.message}
+                    onChange={(e) => setFeedback({...feedback, message: e.target.value})}
+                    placeholder="Tell us what you think..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-4 px-6 focus:ring-4 focus:ring-blue-100 focus:bg-white transition-all outline-none text-sm h-28 resize-none"
+                  />
+                </div>
+
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setIsFeedbackOpen(false)}
+                    className="flex-1 py-4 text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-slate-600 bg-slate-50 rounded-xl"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleSubmitFeedback}
+                    disabled={!feedback.message || loading}
+                    className="flex-[2] bg-slate-900 text-white rounded-xl font-bold uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-50 hover:bg-black transition-all shadow-lg active:scale-95"
+                  >
+                    {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    Submit
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Feedback Success Modal */}
+      <AnimatePresence>
+        {feedbackSuccess && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center px-4 backdrop-blur-md bg-white/80">
+            <motion.div 
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-slate-900 p-10 rounded-[3rem] text-center max-w-sm w-full shadow-2xl"
+            >
+              <div className="bg-blue-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
+                <CheckCircle2 className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-2xl font-black text-white uppercase mb-2">Thank You</h3>
+              <p className="text-slate-400 text-xs mb-8">Your feedback has been routed to our system administrator for review.</p>
+              <button 
+                onClick={() => setFeedbackSuccess(false)}
+                className="w-full py-4 bg-white text-slate-900 rounded-2xl font-black uppercase tracking-widest hover:bg-slate-50 transition-all text-[11px]"
+              >
+                Continue
               </button>
             </motion.div>
           </div>

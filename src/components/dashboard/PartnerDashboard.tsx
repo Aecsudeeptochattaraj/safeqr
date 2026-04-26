@@ -251,8 +251,7 @@ export default function PartnerDashboard() {
                          <th className="px-8 py-5">Customer Name</th>
                          <th className="px-8 py-5">Status</th>
                          <th className="px-8 py-5">Plan</th>
-                         <th className="px-8 py-5 text-right">Yield</th>
-                         <th className="px-8 py-5 text-right uppercase tracking-[0.15em] font-black">Control</th>
+                         <th className="px-8 py-5 text-right uppercase tracking-[0.15em] font-black">Yield</th>
                       </tr>
                    </thead>
                    <tbody className="divide-y divide-slate-100">
@@ -281,39 +280,11 @@ export default function PartnerDashboard() {
                           <td className="px-8 py-6 text-right font-black text-slate-400">
                              ₹{v.planId === '5yr' ? 200 : (v.planId === '2yr' ? 100 : 50)}
                           </td>
-                          <td className="px-8 py-4 text-right">
-                             <div className="flex justify-end gap-2">
-                               <button 
-                                 onClick={async () => {
-                                   const canvas = document.createElement('canvas');
-                                   const qrSrc = document.getElementById(`qr-src-hidden-${v.qrId}`)?.querySelector('canvas');
-                                   if (qrSrc) {
-                                     await drawBrandedQR(canvas, v.qrId!, qrSrc);
-                                     const link = document.createElement("a");
-                                     link.href = canvas.toDataURL("image/png");
-                                     link.download = `ParkSaathi_${v.vehicleNumber}.png`;
-                                     link.click();
-                                   }
-                                 }}
-                                 className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-blue-600 hover:text-white transition-all shadow-sm"
-                                 title="Download QR Sticker"
-                               >
-                                 <Download className="w-4 h-4" />
-                               </button>
-                               <button 
-                                 onClick={() => terminateRegistration(v.id, v.qrId)}
-                                 className="p-2 bg-slate-100 text-red-600 rounded-lg hover:bg-red-600 hover:text-white transition-all shadow-sm"
-                                 title="Terminate Mapping"
-                               >
-                                 <ShieldX className="w-4 h-4" />
-                               </button>
-                             </div>
-                          </td>
                         </tr>
                       ))}
                       {vehicles.length === 0 && (
                         <tr>
-                          <td colSpan={6} className="px-8 py-16 text-center text-slate-400">
+                          <td colSpan={5} className="px-8 py-16 text-center text-slate-400">
                              <div className="max-w-xs mx-auto">
                                 <Car className="w-12 h-12 text-slate-200 mx-auto mb-4" />
                                 <p className="text-[10px] font-black uppercase tracking-widest leading-loose">No active registrations detected.</p>

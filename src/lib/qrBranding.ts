@@ -87,7 +87,11 @@ export async function drawBrandedQR(canvas: HTMLCanvasElement, qrId: string, qrC
   ctx.fillText('Scan using phone camera or any QR app.', width / 2, 830);
 
   // 5. Technical Identifier (Unobtrusive)
+  ctx.fillStyle = '#888888';
+  ctx.font = '900 20px sans-serif';
+  ctx.fillText(`Join with us`, width / 2, height - 80);
+  
   ctx.fillStyle = '#AAAAAA';
-  ctx.font = '900 16px sans-serif';
-  ctx.fillText(`ID: ${qrId} • MYPARKSAATHI.IN`, width / 2, height - 50);
+  ctx.font = '700 16px sans-serif';
+  ctx.fillText(`ID: ${qrId}`, width / 2, height - 40);
 }

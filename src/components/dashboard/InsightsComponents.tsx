@@ -7,8 +7,124 @@ import {
 } from 'recharts';
 import { format, subDays, startOfDay, isWithinInterval, startOfWeek, startOfMonth } from 'date-fns';
 import { LogEntry } from '../../types';
-import { Activity, Clock, TrendingUp, AlertCircle, CheckCircle2, Repeat, Package, Trash2, Smartphone, QrCode, Layers, Search, Download, UserPlus, Filter, BrainCircuit, AlertTriangle, ArrowRight, MousePointerClick, RefreshCw, Car, DollarSign, Percent, Wallet, Banknote, Calendar, ShieldCheck, Loader2, Eye, UserX, Map as MapIcon } from 'lucide-react';
+import { Activity, Clock, TrendingUp, AlertCircle, CheckCircle2, Repeat, Package, Trash2, Smartphone, QrCode, Layers, Search, Download, UserPlus, Filter, BrainCircuit, AlertTriangle, ArrowRight, MousePointerClick, RefreshCw, Car, DollarSign, Percent, Wallet, Banknote, Calendar, ShieldCheck, Loader2, Eye, UserX, Map as MapIcon, MessageSquare, Star, Mail, CheckCircle } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
+
+export function FeedbackManagement({ feedbacks }: { feedbacks: any[] }) {
+  const [filter, setFilter] = React.useState('');
+  
+  const filtered = feedbacks.filter(f => 
+    f.message.toLowerCase().includes(filter.toLowerCase()) || 
+    f.userName?.toLowerCase().includes(filter.toLowerCase()) || 
+    f.email?.toLowerCase().includes(filter.toLowerCase()) ||
+    f.qrId?.toLowerCase().includes(filter.toLowerCase())
+  );
+
+  const resolveFeedback = async (id: string, status: 'resolved' | 'read') => {
+    try {
+      await updateDoc(doc(db, 'feedback', id), { status });
+    } catch (err) {
+      console.error("Failed to update feedback:", err);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
+       <div className="p-8 border-b border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-slate-50/50">
+          <div>
+             <h3 className="text-lg font-black text-slate-900 uppercase tracking-tighter">Customer Pulse</h3>
+             <p className="text-xs text-slate-500 font-medium">Real-time feedback from public scans and platform usage.</p>
+          </div>
+          <div className="flex gap-4 w-full md:w-auto">
+             <div className="relative flex-1 md:w-64">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input 
+                  type="text" 
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                  placeholder="SEARCH FEEDBACK..."
+                  className="w-full pl-12 pr-6 py-3 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none focus:ring-4 focus:ring-blue-100 transition-all"
+                />
+             </div>
+          </div>
+       </div>
+
+       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 p-8">
+          {filtered.map((f) => (
+             <div key={f.id} className={cn(
+               "p-6 rounded-2xl border transition-all relative flex flex-col h-full",
+               f.status === 'new' ? "bg-blue-50/50 border-blue-200 shadow-sm" : "bg-white border-slate-100"
+             )}>
+                <div className="flex justify-between items-start mb-4">
+                   <div className="flex gap-1">
+                      {[1, 2, 3, 4, 5].map(star => (
+                        <Star key={star} className={cn("w-3 h-3", f.rating >= star ? "text-amber-400 fill-amber-400" : "text-slate-200")} />
+                      ))}
+                   </div>
+                   <span className={cn(
+                     "px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest",
+                     f.type === 'bug' ? "bg-red-100 text-red-600" :
+                     f.type === 'scan_issue' ? "bg-amber-100 text-amber-600" :
+                     f.type === 'suggestion' ? "bg-purple-100 text-purple-600" : "bg-blue-100 text-blue-600"
+                   )}>
+                      {f.type}
+                   </span>
+                </div>
+
+                <p className="text-sm font-medium text-slate-700 leading-relaxed italic mb-6 flex-1">
+                   "{f.message}"
+                </p>
+
+                <div className="pt-4 border-t border-slate-100">
+                   <div className="flex items-center gap-3 mb-3">
+                      <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center text-white text-[10px] font-black italic">
+                         {f.userName?.[0] || 'P'}
+                      </div>
+                      <div>
+                         <p className="text-[10px] font-black text-slate-900 uppercase tracking-tight">{f.userName || 'Public User'}</p>
+                         <p className="text-[8px] text-slate-400 font-bold uppercase tracking-widest">{f.qrId ? `QR: ${f.qrId}` : 'Platform feedback'}</p>
+                      </div>
+                   </div>
+
+                   <div className="flex justify-between items-center">
+                      <p className="text-[9px] text-slate-400 font-bold uppercase">
+                         {f.createdAt?.toDate ? format(f.createdAt.toDate(), 'MMM dd, HH:mm') : 'Recently'}
+                      </p>
+                      <div className="flex gap-2">
+                         {f.status === 'new' && (
+                            <button 
+                              onClick={() => resolveFeedback(f.id, 'read')}
+                              className="p-1.5 bg-white text-slate-400 border border-slate-200 rounded-lg hover:text-blue-600 hover:border-blue-200 transition-all"
+                              title="Mark as Read"
+                            >
+                               <CheckCircle className="w-3.5 h-3.5" />
+                            </button>
+                         )}
+                         <button 
+                           onClick={() => resolveFeedback(f.id, f.status === 'resolved' ? 'read' : 'resolved')}
+                           className={cn(
+                             "px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest transition-all",
+                             f.status === 'resolved' ? "bg-green-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                           )}
+                         >
+                            {f.status === 'resolved' ? 'Resolved' : 'Resolve'}
+                         </button>
+                      </div>
+                   </div>
+                </div>
+             </div>
+          ))}
+
+          {filtered.length === 0 && (
+            <div className="col-span-full py-20 text-center">
+               <MessageSquare className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+               <p className="text-sm font-black text-slate-400 uppercase tracking-widest">No feedback detected in transmission.</p>
+            </div>
+          )}
+       </div>
+    </div>
+  );
+}
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#6366f1'];
 
