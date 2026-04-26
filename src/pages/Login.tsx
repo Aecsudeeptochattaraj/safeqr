@@ -2,19 +2,11 @@ import { signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
 import { Shield, ArrowRight } from 'lucide-react';
 import { motion } from 'motion/react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
 
 export default function Login() {
-  const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
-  const redirect = searchParams.get('redirect');
-
   const handleLogin = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
-      if (redirect) {
-        navigate(redirect);
-      }
     } catch (error) {
       console.error('Login failed:', error);
     }

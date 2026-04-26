@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { db } from '../lib/firebase';
 import { doc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -104,7 +104,7 @@ export default function PublicScan() {
           const qrData = qrDoc.data();
           console.log("[SCAN] Inventory profile found:", qrData.status);
           
-          if ((qrData.status === 'assigned' || qrData.status === 'mapped' || qrData.status === 'active') && qrData.mappedVehicleId) {
+          if ((qrData.status === 'assigned' || qrData.status === 'mapped') && qrData.mappedVehicleId) {
             console.log("[SCAN] Node is mapped to vehicle:", qrData.mappedVehicleId);
             const vDoc = await getDoc(doc(db, 'vehicles', qrData.mappedVehicleId));
             if (vDoc.exists()) {

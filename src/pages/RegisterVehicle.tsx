@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { Car, Smartphone, MessageCircle, CreditCard, CheckCircle, ShieldCheck, Camera, Sparkles, Loader2, RefreshCw, Download, QrCode } from 'lucide-react';
+import { Car, Smartphone, MessageCircle, CreditCard, CheckCircle, ShieldCheck, Camera, Sparkles, Loader2, RefreshCw, Download } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { db } from '../lib/firebase';
-import { doc, setDoc, serverTimestamp, collection, query, where, orderBy, limit, onSnapshot, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -15,7 +15,6 @@ function cn(...inputs: ClassValue[]) {
 export default function RegisterVehicle() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
@@ -24,7 +23,7 @@ export default function RegisterVehicle() {
     phone: '',
     whatsapp: '',
     emergencyContact: '',
-    qrId: searchParams.get('qrId') || '', // Pre-fill from URL
+    qrId: '', // Optional physical tag ID
     planId: '2yr' as '2yr' | '5yr'
   });
 
@@ -102,31 +101,35 @@ export default function RegisterVehicle() {
     
     try {
       const formDataToSend = new FormData();
+      formDataToSend.append('screenshot', screenshot);
       formDataToSend.append('transactionId', transactionId);
       formDataToSend.append('userId', user?.uid || '');
-      formDataToSend.append('screenshot', screenshot);
 
       const apiResponse = await fetch('/api/submitPayment', {
         method: 'POST',
         body: formDataToSend
-      }).catch(err => {
-        throw new Error(`Network Error: ${err.message || 'Failed to reach server'}`);
       });
 
+      let errorData: any = null;
       const responseText = await apiResponse.text();
-      let responseData: any = null;
+      
       try {
-        responseData = JSON.parse(responseText);
+        if (responseText) {
+          errorData = JSON.parse(responseText);
+        }
       } catch (e) {
-        console.error("[DEBUG] Server returned non-JSON:", responseText.substring(0, 200));
-        throw new Error(`Server Error (${apiResponse.status}): Expected JSON but reached fallback. Contact Support.`);
+        console.error("Failed to parse server response:", responseText);
       }
 
       if (!apiResponse.ok) {
-        throw new Error(responseData.message || responseData.error || `Payment processing failed (${apiResponse.status})`);
+        throw new Error(errorData?.message || errorData?.error || `Server responded with ${apiResponse.status}: ${responseText.substring(0, 50)}`);
       }
 
-      const { scrubbedImage } = responseData;
+      if (!errorData) {
+        throw new Error("Empty success response from server");
+      }
+
+      const { scrubbedImage } = errorData;
 
       // Continue with Firestore storage
       const vehicleRef = doc(collection(db, 'vehicles'));
