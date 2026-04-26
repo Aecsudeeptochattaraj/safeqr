@@ -82,7 +82,9 @@ service cloud.firestore {
     match /qr_inventory/{qrId} {
       allow read: if true;
       allow create: if isAdmin();
-      allow update: if isAdmin() || (isVerified() && isPartner() && existing().partnerUid == request.auth.uid);
+      allow update: if isAdmin() || 
+                    (isVerified() && isPartner() && existing().partnerUid == request.auth.uid) ||
+                    (isSignedIn() && existing().status == 'available' && incoming().status == 'assigned' && incoming().mappedVehicleId != null);
       allow delete: if isAdmin();
     }
 

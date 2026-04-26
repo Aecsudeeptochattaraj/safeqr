@@ -27,8 +27,12 @@ app.use((req, res, next) => {
 });
 
 // 2. HARDENED API LAYER
-app.post('/api/submitPayment', upload.single('screenshot'), async (req, res) => {
+const apiRouter = express.Router();
+
+apiRouter.post('/submitPayment', upload.single('screenshot'), async (req, res) => {
   console.log("[SECURITY-NODE] Incoming Submission...");
+  console.log("[SECURITY-NODE] Headers:", req.headers['content-type']);
+  console.log("[SECURITY-NODE] Body keys:", Object.keys(req.body || {}));
   
   try {
     const { transactionId, userId } = req.body;
@@ -65,14 +69,14 @@ app.post('/api/submitPayment', upload.single('screenshot'), async (req, res) => 
 });
 
 // --- AI SCANNING PROXIES ---
-app.post('/api/scanPlate', upload.single('image'), async (req, res) => {
+apiRouter.post('/scanPlate', upload.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'IMAGE_REQUIRED' });
     
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return res.status(500).json({ error: 'GEMINI_KEY_MISSING' });
 
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({ apiKey: apiKey });
     
     let base64Image = '';
     try {
@@ -86,9 +90,8 @@ app.post('/api/scanPlate', upload.single('image'), async (req, res) => {
     }
 
     const result = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
-      contents: [{
-        role: 'user',
+      model: "gemini-3-flash-preview",
+      contents: {
         parts: [
           { text: "Extract the vehicle license plate number from this image. Only return the alphanumeric plate number, nothing else. If not found, return 'NOT_FOUND'." },
           {
@@ -98,7 +101,7 @@ app.post('/api/scanPlate', upload.single('image'), async (req, res) => {
             }
           }
         ]
-      }]
+      }
     });
 
     const text = result.text?.trim() || '';
@@ -109,14 +112,14 @@ app.post('/api/scanPlate', upload.single('image'), async (req, res) => {
   }
 });
 
-app.post('/api/scanVehicleDetails', upload.single('image'), async (req, res) => {
+apiRouter.post('/scanVehicleDetails', upload.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'IMAGE_REQUIRED' });
     
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return res.status(500).json({ error: 'GEMINI_KEY_MISSING' });
 
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({ apiKey: apiKey });
     
     let base64Image = '';
     try {
@@ -130,9 +133,8 @@ app.post('/api/scanVehicleDetails', upload.single('image'), async (req, res) => 
     }
 
     const result = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
-      contents: [{
-        role: 'user',
+      model: "gemini-3-flash-preview",
+      contents: {
         parts: [
           { text: `Extract technical vehicle details from this image. 
              Return a JSON object with keys: plate (the number), brand (KIA, HYUNDAI, etc), color (RED, WHITE, etc), and type (CAR, BIKE, SCOOTER).
@@ -145,7 +147,7 @@ app.post('/api/scanVehicleDetails', upload.single('image'), async (req, res) => 
             }
           }
         ]
-      }]
+      }
     });
 
     let text = result.text?.trim() || '{}';
@@ -162,7 +164,25 @@ app.post('/api/scanVehicleDetails', upload.single('image'), async (req, res) => 
   }
 });
 
-app.get('/api/test', (req, res) => res.json({ status: 'active', ts: Date.now() }));
+apiRouter.get('/test', (req, res) => res.json({ status: 'active', ts: Date.now() }));
+
+// Register API Router
+app.use('/api', apiRouter);
+
+// Strict 404 for any other /api calls to prevent HTML fallback
+app.all('/api/*', (req, res) => {
+  console.warn(`[SERVER] 404 on ${req.method} ${req.path}`);
+  res.status(404).json({ error: 'NOT_FOUND', message: `API route ${req.method} ${req.path} not found` });
+});
+
+// 2.1 GLOBAL ERROR HANDLER
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error("[SERVER-CRITICAL]", err);
+  if (req.path.startsWith('/api/')) {
+    return res.status(500).json({ error: 'INTERNAL_ERROR', message: err.message || 'An unexpected server error occurred' });
+  }
+  next(err);
+});
 
 // 3. PRODUCTION STATIC SERVING / DEVELOPMENT MIDDLEWARE
 async function setupVite() {
@@ -181,6 +201,12 @@ async function setupVite() {
     });
   }
 }
+
+// 4. Global Error Handler
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error("[FATAL-ERROR]", err);
+  res.status(500).json({ error: 'INTERNAL_SERVER_ERROR', message: err.message });
+});
 
 // Export for Vercel
 export default app;

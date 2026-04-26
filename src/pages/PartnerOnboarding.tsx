@@ -65,21 +65,33 @@ export default function PartnerOnboarding() {
     setApiError(null);
     try {
       const formDataToSend = new FormData();
-      formDataToSend.append('screenshot', screenshot);
       formDataToSend.append('transactionId', transactionId);
       formDataToSend.append('userId', syntheticOwnerUid);
+      formDataToSend.append('screenshot', screenshot);
 
+      console.log("[DEBUG] Sending payment fetch to /api/submitPayment");
       const apiResponse = await fetch('/api/submitPayment', {
         method: 'POST',
         body: formDataToSend
+      }).catch(err => {
+        console.error("[DEBUG] Network error during fetch:", err);
+        throw new Error(`Network Error: ${err.message || 'Check connection'}`);
       });
 
-      if (!apiResponse.ok) {
-        const errorData = await apiResponse.json();
-        throw new Error(errorData.message || 'Payment processing failed');
+      const responseText = await apiResponse.text();
+      let responseData: any = null;
+      try {
+        responseData = JSON.parse(responseText);
+      } catch (e) {
+        console.error("[DEBUG] Server returned non-JSON:", responseText.substring(0, 200));
+        throw new Error(`Server Error (${apiResponse.status}): Expected JSON but received HTML/Text. Contact Support.`);
       }
 
-      const { scrubbedImage } = await apiResponse.json();
+      if (!apiResponse.ok) {
+        throw new Error(responseData.message || responseData.error || `Payment processing failed (${apiResponse.status})`);
+      }
+
+      const { scrubbedImage } = responseData;
 
       const paymentRef = doc(db, 'payments', transactionId);
       await setDoc(paymentRef, {
@@ -291,6 +303,18 @@ export default function PartnerOnboarding() {
     downloadLink.download = `ParkSaathi_${formData.selectedQrId}.png`;
     downloadLink.href = pngFile;
     downloadLink.click();
+  };
+
+  const handleScreenshotChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null;
+    if (file && file.size > 8 * 1024 * 1024) {
+      setApiError("Screenshot too large. Max 8MB allowed.");
+      setScreenshot(null);
+      e.target.value = '';
+      return;
+    }
+    setScreenshot(file);
+    if (file) setApiError(null);
   };
 
   return (
@@ -589,7 +613,7 @@ export default function PartnerOnboarding() {
                          type="file" 
                          accept="image/*" 
                          className="hidden" 
-                         onChange={(e) => setScreenshot(e.target.files?.[0] || null)} 
+                         onChange={handleScreenshotChange} 
                        />
                     </label>
                   </div>

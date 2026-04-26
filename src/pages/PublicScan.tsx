@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { useParams, Link } from 'react-router-dom';
 import { db } from '../lib/firebase';
 import { doc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Vehicle } from '../types';
@@ -16,7 +16,7 @@ export default function PublicScan() {
   const { id } = useParams();
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<React.ReactNode | null>(null);
   
   // Anti-abuse state
   const [isVerified, setIsVerified] = useState(false);
@@ -104,7 +104,7 @@ export default function PublicScan() {
           const qrData = qrDoc.data();
           console.log("[SCAN] Inventory profile found:", qrData.status);
           
-          if ((qrData.status === 'assigned' || qrData.status === 'mapped') && qrData.mappedVehicleId) {
+          if ((qrData.status === 'assigned' || qrData.status === 'mapped' || qrData.status === 'active') && qrData.mappedVehicleId) {
             console.log("[SCAN] Node is mapped to vehicle:", qrData.mappedVehicleId);
             const vDoc = await getDoc(doc(db, 'vehicles', qrData.mappedVehicleId));
             if (vDoc.exists()) {
@@ -131,7 +131,25 @@ export default function PublicScan() {
           }
           
           // If in inventory but not mapped/assigned properly
-          setError('This MyParkSaathi node is ready but not yet mapped. Please link it to a vehicle via the Partner Portal.');
+          setError(
+            <div className="space-y-4">
+              <p>This MyParkSaathi node is ready but not yet linked to a safety profile.</p>
+              <div className="flex flex-col gap-3 py-4">
+                <Link 
+                  to={`/register-vehicle?qrId=${id}`}
+                  className="bg-blue-600 text-white px-6 py-3 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg shadow-blue-200"
+                >
+                  Link to My Vehicle
+                </Link>
+                <Link 
+                  to="/"
+                  className="bg-slate-100 text-slate-600 px-6 py-3 rounded-xl font-black uppercase text-xs tracking-widest"
+                >
+                  Learn More
+                </Link>
+              </div>
+            </div>
+          );
           setLoading(false);
           return;
         }
