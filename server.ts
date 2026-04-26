@@ -1,21 +1,49 @@
 import express from 'express';
 import { createServer as createViteServer } from 'vite';
 import multer from 'multer';
-import sharp from 'sharp';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
+import cors from 'cors';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = 3000;
 
-// 0. Body Parsers & Upload Config
+app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 const upload = multer({ 
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
 });
+
+// Lazy sharp loader to prevent crash if native binaries are missing in serverless
+async function processImage(buffer: Buffer, mimetype: string): Promise<string> {
+  try {
+    const { default: sharpInstance } = await import('sharp');
+    const processed = await sharpInstance(buffer)
+      .resize(800, 800, { fit: 'inside' })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+    return `data:image/jpeg;base64,${processed.toString('base64')}`;
+  } catch (e) {
+    console.warn("[SERVER] Sharp processing failed (likely missing native binary), using raw fallback.");
+    return `data:${mimetype};base64,${buffer.toString('base64')}`;
+  }
+}
+
+async function processAiImage(buffer: Buffer): Promise<string> {
+  try {
+    const { default: sharpInstance } = await import('sharp');
+    const processed = await sharpInstance(buffer)
+      .resize(1024, 1024, { fit: 'inside' })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+    return processed.toString('base64');
+  } catch (e) {
+    return buffer.toString('base64');
+  }
+}
 
 // 1. GLOBAL REQUEST TRACER
 app.use((req, res, next) => {
@@ -27,25 +55,15 @@ app.use((req, res, next) => {
 });
 
 // 2. HARDENED API LAYER
-app.post(['/api/submitPayment', '/submitPayment'], upload.single('screenshot'), async (req, res) => {
-  console.log("[SECURITY-NODE] Incoming Submission...");
-  
+const apiHandler = async (req: express.Request, res: express.Response) => {
+  console.log("[SECURITY-NODE] Processing Payment Submission...");
   try {
     const { transactionId, userId } = req.body;
     if (!transactionId || !userId || !req.file) {
       return res.status(400).json({ error: 'DATA_MALFORMED', message: 'Transaction ID, User ID, and Screenshot are required.' });
     }
 
-    let processedData = '';
-    try {
-      const buffer = await sharp(req.file.buffer)
-        .resize(800, 800, { fit: 'inside' })
-        .jpeg({ quality: 80 })
-        .toBuffer();
-      processedData = `data:image/jpeg;base64,${buffer.toString('base64')}`;
-    } catch (e) {
-      processedData = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
-    }
+    const processedData = await processImage(req.file.buffer, req.file.mimetype);
 
     return res.status(200).json({
       success: true,
@@ -56,10 +74,12 @@ app.post(['/api/submitPayment', '/submitPayment'], upload.single('screenshot'), 
     console.error("[SECURITY-NODE] Critical Error:", fatal);
     return res.status(500).json({ error: 'SERVER_FAULT', message: fatal.message });
   }
-});
+};
+
+app.post(['/api/submitPayment', '/submitPayment'], upload.single('screenshot'), apiHandler);
 
 // --- AI SCANNING PROXIES ---
-app.post(['/api/scanPlate', '/scanPlate'], upload.single('image'), async (req, res) => {
+const plateHandler = async (req: express.Request, res: express.Response) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'IMAGE_REQUIRED' });
     
@@ -67,17 +87,7 @@ app.post(['/api/scanPlate', '/scanPlate'], upload.single('image'), async (req, r
     if (!apiKey) return res.status(500).json({ error: 'GEMINI_KEY_MISSING' });
 
     const ai = new GoogleGenAI({ apiKey: apiKey });
-    
-    let base64Image = '';
-    try {
-      const buf = await sharp(req.file.buffer)
-        .resize(1024, 1024, { fit: 'inside' })
-        .jpeg({ quality: 80 })
-        .toBuffer();
-      base64Image = buf.toString('base64');
-    } catch (e) {
-      base64Image = req.file.buffer.toString('base64');
-    }
+    const base64Image = await processAiImage(req.file.buffer);
 
     const result = await ai.models.generateContent({
       model: "gemini-1.5-flash", 
@@ -100,9 +110,11 @@ app.post(['/api/scanPlate', '/scanPlate'], upload.single('image'), async (req, r
     console.error("[SCAN-NODE] AI Error:", err);
     res.status(500).json({ error: 'SCAN_FAILED', message: err.message });
   }
-});
+};
 
-app.post(['/api/scanVehicleDetails', '/scanVehicleDetails'], upload.single('image'), async (req, res) => {
+app.post(['/api/scanPlate', '/scanPlate'], upload.single('image'), plateHandler);
+
+const detailsHandler = async (req: express.Request, res: express.Response) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'IMAGE_REQUIRED' });
     
@@ -110,17 +122,7 @@ app.post(['/api/scanVehicleDetails', '/scanVehicleDetails'], upload.single('imag
     if (!apiKey) return res.status(500).json({ error: 'GEMINI_KEY_MISSING' });
 
     const ai = new GoogleGenAI({ apiKey: apiKey });
-    
-    let base64Image = '';
-    try {
-      const buf = await sharp(req.file.buffer)
-        .resize(1024, 1024, { fit: 'inside' })
-        .jpeg({ quality: 80 })
-        .toBuffer();
-      base64Image = buf.toString('base64');
-    } catch (e) {
-      base64Image = req.file.buffer.toString('base64');
-    }
+    const base64Image = await processAiImage(req.file.buffer);
 
     const result = await ai.models.generateContent({
       model: "gemini-1.5-flash",
@@ -152,8 +154,11 @@ app.post(['/api/scanVehicleDetails', '/scanVehicleDetails'], upload.single('imag
     console.error("[SCAN-NODE] Details AI Error:", err);
     res.status(500).json({ error: 'SCAN_FAILED', message: err.message });
   }
-});
+};
 
+app.post(['/api/scanVehicleDetails', '/scanVehicleDetails'], upload.single('image'), detailsHandler);
+
+app.get(['/api/ping', '/ping'], (req, res) => res.json({ status: 'ok', v: '2.2' }));
 app.get(['/api/test', '/test'], (req, res) => res.json({ status: 'active', ts: Date.now() }));
 
 // Strict 404 for any other /api calls to prevent HTML fallback
