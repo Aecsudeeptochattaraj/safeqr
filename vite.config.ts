@@ -22,6 +22,7 @@ export default defineConfig(({mode}) => {
         },
         includeAssets: ['pwa-192x192.svg', 'pwa-512x512.svg'],
         manifest: {
+          id: 'com.myparksaathi.app',
           name: 'My Park Saathi',
           short_name: 'ParkSaathi',
           description: 'Your Smart Parking Companion',
@@ -31,6 +32,7 @@ export default defineConfig(({mode}) => {
           orientation: 'portrait',
           scope: '/',
           start_url: '/',
+          categories: ['productivity', 'utilities', 'transportation'],
           icons: [
             {
               src: 'pwa-192x192.svg',
@@ -43,12 +45,6 @@ export default defineConfig(({mode}) => {
               sizes: '512x512',
               type: 'image/svg+xml',
               purpose: 'any'
-            },
-            {
-              src: 'pwa-512x512.svg',
-              sizes: '192x192',
-              type: 'image/svg+xml',
-              purpose: 'maskable'
             },
             {
               src: 'pwa-512x512.svg',

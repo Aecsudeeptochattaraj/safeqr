@@ -73,29 +73,32 @@ export function InstallPWA() {
             <div className="absolute top-0 left-0 w-1 h-full bg-blue-600" />
             
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200">
-                  <Smartphone className="w-5 h-5 text-white animate-pulse" />
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-200">
+                  <Smartphone className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-[11px] font-black uppercase text-slate-800 tracking-wider">Install App</h3>
-                  <p className="text-[9px] text-slate-500 font-bold uppercase tracking-tight">
-                    {isIOS ? 'Must use Share Menu' : 'Add to your home screen now'}
+                  <h3 className="text-[14px] font-black uppercase text-slate-900 tracking-tight leading-none">Install Park Saathi</h3>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1.5 opacity-80">
+                    {isIOS ? 'Native experience required' : 'Fast home screen access'}
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 {deferredPrompt ? (
                   <button 
                     onClick={handleInstall}
-                    className="px-6 py-2.5 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-200"
+                    className="px-8 py-3 bg-blue-600 text-white text-[11px] font-black uppercase tracking-[0.2em] rounded-xl hover:bg-blue-700 active:scale-95 transition-all shadow-xl shadow-blue-200"
                   >
                     Install Now
                   </button>
                 ) : (
-                  <div className="px-3 py-1 bg-amber-50 text-amber-700 text-[8px] font-black uppercase tracking-widest rounded border border-amber-100 italic">
-                    {isIOS ? 'System Menu' : 'Browser Settings'}
+                  <div className="flex flex-col items-end">
+                    <span className="text-[8px] font-black text-amber-600 uppercase tracking-widest italic mb-1">Incomplete Setup</span>
+                    <div className="px-3 py-1 bg-amber-50 text-amber-700 text-[10px] font-black uppercase tracking-widest rounded-lg border border-amber-100">
+                      {isIOS ? 'Safari Menu' : 'Browser Settings'}
+                    </div>
                   </div>
                 )}
                 <button 
@@ -103,54 +106,51 @@ export function InstallPWA() {
                     setIsVisible(false);
                     sessionStorage.setItem('pwa_dismissed', 'true');
                   }}
-                  className="p-2 text-slate-300 hover:text-slate-500"
+                  className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition-colors"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
-            {/* Instruction Panel when deferredPrompt is missing or in iframe */}
+            {/* Instruction Panel */}
             {(!deferredPrompt || isInIframe) && (
               <motion.div 
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
-                className="mt-4 pt-4 border-t border-slate-50 space-y-3"
+                className="mt-6 pt-6 border-t border-slate-100 space-y-4"
               >
                 {isInIframe && (
-                  <div className="bg-red-50 border border-red-100 rounded-xl p-3 flex gap-3 mb-2 animate-pulse">
-                    <div className="w-6 h-6 bg-red-600 rounded-lg flex items-center justify-center shrink-0">
-                      <ExternalLink className="w-3 h-3 text-white" />
+                  <div className="bg-red-50 border border-red-100 rounded-2xl p-4 flex gap-4 mb-2">
+                    <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-red-200">
+                      <ExternalLink className="w-5 h-5 text-white" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-[10px] font-black uppercase text-red-900 leading-tight">Installation Blocked</p>
-                      <p className="text-[9px] text-red-700 font-bold uppercase tracking-tight mt-0.5">
-                        You are inside a preview. You <span className="text-red-900 underline font-black">MUST</span> tap the <span className="inline-flex items-center px-1 bg-white border border-slate-200 rounded text-[8px]">↗ Open in New Tab</span> button at the top right to install this app.
+                      <p className="text-[11px] font-black uppercase text-red-900 leading-tight">Installation Blocked</p>
+                      <p className="text-[10px] text-red-700 font-medium leading-relaxed mt-1">
+                        You are viewing in a sandboxed preview. Tap <span className="font-black bg-white/50 px-1 rounded">↗ Open in New Tab</span> at the top right to enable native installation.
                       </p>
                     </div>
                   </div>
                 )}
 
-                <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center shrink-0 text-[10px] font-bold text-blue-600">1</div>
-                  <p className="text-[10px] text-slate-600 font-medium">
-                    {isIOS 
-                      ? 'Tap the "Share" icon (square with arrow) at the bottom center of Safari.' 
-                      : 'Tap the three dots (⋮) or arrow icon in your browser address bar.'}
-                  </p>
-                </div>
-                <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center shrink-0 text-[10px] font-bold text-blue-600">2</div>
-                  <p className="text-[10px] text-slate-600 font-medium">
-                    {isIOS 
-                      ? 'Scroll down and tap "Add to Home Screen".' 
-                      : 'Look for "Install App" or "Add to Home Screen" in the menu.'}
-                  </p>
-                </div>
-                <div className="pt-2">
-                  <p className="text-[8px] text-slate-400 font-bold uppercase tracking-tight">
-                    Tip: If not visible, try opening in Safari (Apple) or Chrome (Android) directly.
-                  </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-[12px] font-black text-blue-600 mb-3">1</div>
+                    <p className="text-[11px] text-slate-600 font-bold uppercase tracking-tight leading-tight">
+                      {isIOS 
+                        ? 'Tap "Share" button in Safari' 
+                        : 'Tap "3 Dots" in address bar'}
+                    </p>
+                  </div>
+                  <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-[12px] font-black text-blue-600 mb-3">2</div>
+                    <p className="text-[11px] text-slate-600 font-bold uppercase tracking-tight leading-tight">
+                      {isIOS 
+                        ? 'Select "Add to Home Screen"' 
+                        : 'Select "Install App"'}
+                    </p>
+                  </div>
                 </div>
               </motion.div>
             )}

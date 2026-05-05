@@ -1,9 +1,40 @@
-import { Shield } from 'lucide-react';
+import { Shield, Smartphone, Download } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 export default function Footer() {
+  const [isStandalone, setIsStandalone] = useState(false);
+
+  useEffect(() => {
+    setIsStandalone(window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true);
+  }, []);
+
+  const handleInstallClick = () => {
+    window.dispatchEvent(new Event('beforeinstallprompt_custom_trigger'));
+  };
+
   return (
     <footer className="bg-slate-900 text-white border-t border-slate-800 py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {!isStandalone && (
+          <div className="mb-16 p-8 bg-blue-600/10 border border-blue-500/20 rounded-[32px] flex flex-col md:flex-row items-center justify-between gap-8 group">
+            <div className="flex items-center gap-6">
+              <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-blue-900/50 group-hover:scale-110 transition-transform">
+                <Smartphone className="w-7 h-7 text-white" />
+              </div>
+              <div>
+                <h4 className="text-xl font-black text-white uppercase tracking-tight italic">Install My Park Saathi Mobile</h4>
+                <p className="text-blue-400 text-xs font-bold uppercase tracking-widest mt-1">Get instant QR access & native alerts.</p>
+              </div>
+            </div>
+            <button 
+              onClick={handleInstallClick}
+              className="w-full md:w-auto px-10 py-4 bg-white text-slate-900 rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-blue-600 hover:text-white transition-all shadow-xl active:scale-95 flex items-center justify-center gap-3"
+            >
+              <Download className="w-4 h-4" />
+              Install Now
+            </button>
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
           <div className="col-span-1 md:col-span-2">
             <div className="flex items-center space-x-3 mb-6">

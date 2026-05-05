@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { Shield, Menu, X, LogOut, User, LayoutDashboard, QrCode } from 'lucide-react';
-import { useState } from 'react';
+import { Shield, Menu, X, LogOut, User, LayoutDashboard, QrCode, Smartphone } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { auth } from '../../lib/firebase';
 import { signOut } from 'firebase/auth';
 import { useAuth } from '../../hooks/useAuth';
@@ -8,7 +8,17 @@ import { useAuth } from '../../hooks/useAuth';
 export default function Navbar() {
   const { user, profile } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    setIsStandalone(window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true);
+  }, []);
+
+  const handleInstallClick = () => {
+    window.dispatchEvent(new Event('beforeinstallprompt_custom_trigger'));
+    setIsOpen(false);
+  };
 
   const handleSignOut = async () => {
     await signOut(auth);
@@ -33,6 +43,18 @@ export default function Navbar() {
 
           {/* Desktop Menu */}
           <div className="hidden md:flex items-center space-x-12">
+            {!isStandalone && (
+              <button 
+                onClick={handleInstallClick}
+                className="group flex flex-col items-center transition-all"
+              >
+                <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-blue-600 group-hover:text-blue-700">
+                  <Smartphone className="w-3.5 h-3.5" />
+                  Install
+                </div>
+                <div className="w-0 h-0.5 bg-blue-600 transition-all group-hover:w-full mt-0.5" />
+              </button>
+            )}
             <Link to="/" className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-blue-600 transition-colors">Network</Link>
             
             {user ? (
@@ -80,6 +102,23 @@ export default function Navbar() {
       {isOpen && (
         <div className="md:hidden absolute top-full left-0 w-full bg-white border-b border-line p-6 animate-reveal">
           <div className="space-y-4">
+            {!isStandalone && (
+              <button 
+                onClick={handleInstallClick}
+                className="w-full flex items-center justify-between p-4 bg-blue-50 border border-blue-100 rounded-2xl group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white">
+                    <Smartphone className="w-4 h-4" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-[10px] font-black uppercase text-blue-900 leading-tight">Install App</p>
+                    <p className="text-[8px] text-blue-600 font-bold uppercase tracking-tight">Access 5x faster</p>
+                  </div>
+                </div>
+                <Menu className="w-4 h-4 text-blue-300" />
+              </button>
+            )}
             <Link onClick={() => setIsOpen(false)} to="/" className="block text-[10px] font-black uppercase tracking-widest text-slate-900 py-2 border-b border-slate-50">Network</Link>
             {user ? (
               <>

@@ -73,47 +73,6 @@ export default function UserDashboard() {
         </div>
       </div>
 
-      {(!isPWA && !loading) && (
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="mb-10 bg-white border-2 border-blue-600 rounded-3xl p-8 text-slate-900 shadow-2xl shadow-blue-100 flex flex-col md:flex-row items-center justify-between gap-8 overflow-hidden relative group"
-        >
-          <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform duration-700">
-            <Smartphone className="w-64 h-64 rotate-12" />
-          </div>
-          
-          <div className="relative z-10 flex flex-col md:flex-row items-center gap-6">
-            <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200">
-              <Download className="w-8 h-8 text-white animate-bounce" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-[9px] font-black uppercase tracking-widest">PWA Active</span>
-                <h2 className="text-2xl font-black tracking-tight text-slate-900 uppercase italic">Install My Park Saathi</h2>
-              </div>
-              <p className="text-slate-500 text-sm font-bold uppercase tracking-tight">Access your parking QR 5x faster from your home screen</p>
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-center gap-4 relative z-10 w-full md:w-auto">
-            <button 
-              onClick={() => {
-                window.dispatchEvent(new Event('beforeinstallprompt_custom_trigger'));
-                if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-                  alert('iPhone Install: Tap "Share" (bottom center) -> "Add to Home Screen"');
-                } else {
-                   alert('Desktop/Android: Look for the [⊕] icon in your address bar or browser menu.');
-                }
-              }}
-              className="w-full sm:w-auto px-10 py-4 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl shadow-blue-200 active:scale-95"
-            >
-              Start Installation
-            </button>
-          </div>
-        </motion.div>
-      )}
-
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {[1,2,3].map(i => <div key={i} className="h-64 bg-slate-50 animate-pulse rounded-2xl border border-slate-200"></div>)}
