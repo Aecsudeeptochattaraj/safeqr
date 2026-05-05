@@ -12,6 +12,7 @@ export default defineConfig(({mode}) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
+        injectRegister: 'auto',
         includeAssets: ['pwa-192x192.svg', 'pwa-512x512.svg'],
         manifest: {
           name: 'My Park Saathi',
@@ -20,6 +21,8 @@ export default defineConfig(({mode}) => {
           theme_color: '#2563eb',
           background_color: '#ffffff',
           display: 'standalone',
+          orientation: 'portrait',
+          scope: '/',
           start_url: '/',
           icons: [
             {
@@ -36,9 +39,18 @@ export default defineConfig(({mode}) => {
               src: 'pwa-512x512.svg',
               sizes: '512x512',
               type: 'image/svg+xml',
-              purpose: 'any maskable'
+              purpose: 'any'
+            },
+            {
+              src: 'pwa-512x512.svg',
+              sizes: '512x512',
+              type: 'image/svg+xml',
+              purpose: 'maskable'
             }
           ]
+        },
+        devOptions: {
+          enabled: true
         }
       })
     ],

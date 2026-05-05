@@ -113,14 +113,14 @@ export function InstallPWA() {
                 className="mt-4 pt-4 border-t border-slate-50 space-y-3"
               >
                 {isInIframe && (
-                  <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 flex gap-3 mb-2">
-                    <div className="w-6 h-6 bg-blue-600 rounded-lg flex items-center justify-center shrink-0">
+                  <div className="bg-red-50 border border-red-100 rounded-xl p-3 flex gap-3 mb-2 animate-pulse">
+                    <div className="w-6 h-6 bg-red-600 rounded-lg flex items-center justify-center shrink-0">
                       <ExternalLink className="w-3 h-3 text-white" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-[10px] font-black uppercase text-blue-900 leading-tight">Action Required</p>
-                      <p className="text-[9px] text-blue-700 font-bold uppercase tracking-tight mt-0.5">
-                        Installation is blocked inside the preview. Use the button at the top right to <span className="text-blue-900 underline">Open in New Tab</span> first.
+                      <p className="text-[10px] font-black uppercase text-red-900 leading-tight">Installation Blocked</p>
+                      <p className="text-[9px] text-red-700 font-bold uppercase tracking-tight mt-0.5">
+                        You are inside a preview. You <span className="text-red-900 underline font-black">MUST</span> tap the <span className="inline-flex items-center px-1 bg-white border border-slate-200 rounded text-[8px]">↗ Open in New Tab</span> button at the top right to install this app.
                       </p>
                     </div>
                   </div>
