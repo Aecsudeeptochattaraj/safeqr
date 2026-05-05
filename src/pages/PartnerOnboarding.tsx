@@ -45,7 +45,6 @@ export default function PartnerOnboarding() {
   const [isAiScanning, setIsAiScanning] = useState(false);
 
   const [transactionId, setTransactionId] = useState('');
-  const [screenshot, setScreenshot] = useState<File | null>(null);
   const [paymentVerified, setPaymentVerified] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [registeredVehicleId, setRegisteredVehicleId] = useState<string | null>(null);
@@ -56,49 +55,39 @@ export default function PartnerOnboarding() {
   }, [user, profile]);
 
   const submitPartnerPayment = async () => {
-    if (!transactionId || !screenshot || !registeredVehicleId || !syntheticOwnerUid) {
-      setApiError("Please provide Transaction ID and upload screenshot.");
+    if (!transactionId || !registeredVehicleId || !syntheticOwnerUid) {
+      setApiError("Please provide Transaction ID.");
       return;
     }
 
     setLoading(true);
     setApiError(null);
-    try {
-      const formDataToSend = new FormData();
-      formDataToSend.append('screenshot', screenshot);
-      formDataToSend.append('transactionId', transactionId);
-      formDataToSend.append('userId', syntheticOwnerUid);
+    
+    const trySubmit = async () => {
+      try {
+        const paymentRef = doc(db, 'payments', transactionId);
+        await setDoc(paymentRef, {
+          id: transactionId,
+          userId: syntheticOwnerUid,
+          vehicleId: registeredVehicleId,
+          transactionId,
+          amount: formData.plan === '5yr' ? 1000 : (formData.plan === '2yr' ? 500 : 250),
+          status: 'pending',
+          channel: 'partner',
+          partnerUid: user?.uid,
+          scrubbedScreenshotUrl: null,
+          createdAt: serverTimestamp(),
+        });
 
-      const apiResponse = await fetch('/api/submitPayment', {
-        method: 'POST',
-        body: formDataToSend
-      });
-
-      if (!apiResponse.ok) {
-        const errorData = await apiResponse.json();
-        throw new Error(errorData.message || 'Payment processing failed');
+        setStep(5);
+      } catch (err: any) {
+        console.error("Partner payment submission final failure:", err);
+        setApiError(err.message || 'Failed to save transaction.');
       }
+    };
 
-      const { scrubbedImage } = await apiResponse.json();
-
-      const paymentRef = doc(db, 'payments', transactionId);
-      await setDoc(paymentRef, {
-        id: transactionId,
-        userId: syntheticOwnerUid,
-        vehicleId: registeredVehicleId,
-        transactionId,
-        amount: formData.plan === '5yr' ? 1000 : (formData.plan === '2yr' ? 500 : 250),
-        status: 'pending',
-        channel: 'partner',
-        partnerUid: user?.uid,
-        scrubbedScreenshotUrl: scrubbedImage,
-        createdAt: serverTimestamp(),
-      });
-
-      setStep(5);
-    } catch (err: any) {
-      console.error("Partner payment error:", err);
-      setApiError(err.message);
+    try {
+      await trySubmit();
     } finally {
       setLoading(false);
     }
@@ -574,29 +563,15 @@ export default function PartnerOnboarding() {
                     <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">UTR / Transaction ID</label>
                     <input 
                       value={transactionId}
-                      onChange={(e) => setTransactionId(e.target.value)}
+                      onChange={(e) => setTransactionId(e.target.value.toUpperCase())}
                       placeholder="ENTER REFERENCE NO."
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl py-4 px-5 focus:ring-2 focus:ring-blue-100 outline-none font-bold text-slate-900"
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Payment Proof</label>
-                    <label className="cursor-pointer flex items-center justify-center gap-3 py-4 bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl hover:border-blue-600 transition-all text-[10px] font-black uppercase tracking-widest">
-                       <Camera className="w-5 h-5 text-slate-400" />
-                       {screenshot ? screenshot.name : "Capture Screenshot"}
-                       <input 
-                         type="file" 
-                         accept="image/*" 
-                         className="hidden" 
-                         onChange={(e) => setScreenshot(e.target.files?.[0] || null)} 
-                       />
-                    </label>
-                  </div>
-
                   <button 
                     onClick={submitPartnerPayment}
-                    disabled={loading || !transactionId || !screenshot}
+                    disabled={loading || !transactionId}
                     className="w-full py-5 bg-blue-600 text-white rounded-xl text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-blue-100 flex items-center justify-center gap-3 hover:bg-blue-700 disabled:opacity-50 active:scale-95 transition-all"
                   >
                     {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><ShieldCheck className="w-5 h-5" /> Submit for Verification</>}
@@ -663,6 +638,7 @@ export default function PartnerOnboarding() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full">
                    <button 
                     onClick={() => {
+                       // COMPLETE STATE RESET
                        setFormData({
                          customerName: '',
                          phone: '',
@@ -674,7 +650,13 @@ export default function PartnerOnboarding() {
                          selectedQrId: '',
                          plan: '2yr'
                        });
+                       setTransactionId('');
+                       setPaymentVerified(false);
+                       setRegisteredVehicleId(null);
+                       setSyntheticOwnerUid(null);
+                       setApiError(null);
                        setStep(1);
+                       window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}
                     className="py-4 bg-slate-100 text-slate-900 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 shadow-sm transition-all"
                    >

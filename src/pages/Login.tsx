@@ -1,14 +1,25 @@
 import { signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
-import { Shield, ArrowRight } from 'lucide-react';
+import { Shield, ArrowRight, Smartphone, Download } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function Login() {
   const handleLogin = async () => {
     try {
       await signInWithPopup(auth, googleProvider);
+      // Trigger PWA install banner for smart onboarding
+      window.dispatchEvent(new Event('beforeinstallprompt_custom_trigger'));
     } catch (error) {
       console.error('Login failed:', error);
+    }
+  };
+
+  const triggerInstall = () => {
+    window.dispatchEvent(new Event('beforeinstallprompt_custom_trigger'));
+    if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+      alert('To install on iPhone: Tap "Share" and "Add to Home Screen"');
+    } else {
+      alert('To install on Android/Laptop: Click the [⊕] icon in address bar or browser menu.');
     }
   };
 
@@ -63,6 +74,24 @@ export default function Login() {
             <p className="text-[10px] text-slate-400 font-bold uppercase text-center px-8 mt-6">
               By proceeding, you agree to our Terms of Service and Privacy Policy.
             </p>
+
+            <div className="pt-8 mt-8 border-t border-slate-100">
+              <button 
+                onClick={triggerInstall}
+                className="w-full flex items-center justify-between p-4 bg-blue-50/50 rounded-xl group hover:bg-blue-50 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-600 rounded-lg text-white">
+                    <Smartphone className="w-4 h-4" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-[10px] font-black uppercase text-blue-800 tracking-wider">Install Mobile App</p>
+                    <p className="text-[9px] text-blue-600 font-bold uppercase">Quick Access & Notifications</p>
+                  </div>
+                </div>
+                <Download className="w-4 h-4 text-blue-600 animate-pulse" />
+              </button>
+            </div>
           </div>
         </motion.div>
       </div>

@@ -3,7 +3,7 @@ import { db } from '../../lib/firebase';
 import { collection, query, getDocs, limit, serverTimestamp, writeBatch, doc, where, updateDoc, onSnapshot, addDoc, deleteDoc } from 'firebase/firestore';
 import { AppUser, QRInventory, LogEntry } from '../../types';
 import { useAuth } from '../../hooks/useAuth';
-import { Users, Car, Coins, ShieldCheck, QrCode, Package, Download, UserMinus, Layers, Loader2, Printer, ExternalLink, Trash2, Repeat, AlertTriangle, CheckCircle2, TrendingUp, Activity, Clock, PieChart, Info, Search, UserX, UserCheck, ShieldOff, Eye, Map as MapIcon, List, ChevronDown, LayoutDashboard, MessageSquare } from 'lucide-react';
+import { Users, Car, Coins, ShieldCheck, QrCode, Package, Download, UserMinus, Layers, Loader2, Printer, ExternalLink, Trash2, Repeat, AlertTriangle, CheckCircle2, TrendingUp, Activity, Clock, PieChart, Info, Search, UserX, UserCheck, ShieldOff, Eye, Map as MapIcon, List, ChevronDown, LayoutDashboard, MessageSquare, Smartphone } from 'lucide-react';
 
 const viewConfig = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
@@ -22,6 +22,7 @@ const viewConfig = [
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeCanvas } from 'qrcode.react';
+import { motion } from 'motion/react';
 import JSZip from 'jszip';
 import { drawBrandedQR } from '../../lib/qrBranding';
 import { 
@@ -65,6 +66,12 @@ export default function AdminDashboard() {
     scanTrend: 0 
   });
   const [view, setView] = useState<'overview' | 'insights' | 'feedback' | 'supply_chain' | 'audit_logs' | 'qr_management' | 'fleet' | 'users' | 'financials' | 'projection' | 'payments'>('overview');
+  const [isPWA, setIsPWA] = useState(false);
+
+  useEffect(() => {
+    setIsPWA(window.matchMedia('(display-mode: standalone)').matches);
+  }, []);
+
   const [feedbacks, setFeedbacks] = useState<any[]>([]);
   const [activityLogs, setActivityLogs] = useState<LogEntry[]>([]);
   const [allLogs, setAllLogs] = useState<LogEntry[]>([]);
@@ -278,6 +285,41 @@ export default function AdminDashboard() {
       
       {view === 'overview' && (
         <div className="space-y-12">
+          {/* PWA Promo for Admins */}
+          {!isPWA && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-white border-2 border-blue-600 rounded-3xl p-8 text-slate-900 shadow-2xl shadow-blue-100 flex flex-col md:flex-row items-center justify-between gap-8 overflow-hidden relative group"
+            >
+              <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform duration-700">
+                <Smartphone className="w-64 h-64 rotate-12" />
+              </div>
+              
+              <div className="relative z-10 flex flex-row items-center gap-6">
+                <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200">
+                  <Download className="w-8 h-8 text-white animate-bounce" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-[9px] font-black uppercase tracking-widest">Admin PWA</span>
+                    <h2 className="text-2xl font-black tracking-tight text-slate-900 uppercase italic leading-none">System Native Console</h2>
+                  </div>
+                  <p className="text-slate-500 text-sm font-bold uppercase tracking-tight">Monitor global telemetry with zero latency from your home screen</p>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center gap-4 relative z-10 w-full md:w-auto">
+                <button 
+                  onClick={() => window.dispatchEvent(new Event('beforeinstallprompt_custom_trigger'))}
+                  className="w-full sm:w-auto px-10 py-4 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl shadow-blue-200 active:scale-95"
+                >
+                  Install Admin App
+                </button>
+              </div>
+            </motion.div>
+          )}
+
           {/* Proactive Intelligence Alerts */}
           <div className="space-y-4">
             {rawData.inventory.length > 100 && stats.availableQRs < 10 && (
@@ -706,7 +748,7 @@ function QRManagement() {
       await updateDoc(doc(db, 'qr_inventory', id), { 
         partnerUid: null,
         status: 'available',
-        vehicleId: null,
+        mappedVehicleId: null,
         ownerUid: null
       });
       // Log reclaiming
@@ -726,7 +768,7 @@ function QRManagement() {
     try {
       await updateDoc(doc(db, 'qr_inventory', id), { 
         status: 'available',
-        vehicleId: null,
+        mappedVehicleId: null,
         ownerUid: null
       });
       // Log unlinking

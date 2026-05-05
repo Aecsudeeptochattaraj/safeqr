@@ -97,17 +97,23 @@ export default function PublicScan() {
       if (!id) return;
       console.log("[SCAN] Fetching node:", id);
       try {
-        // 1. Try Inventory Lookup (Physical Tag ID)
-        const qrDoc = await getDoc(doc(db, 'qr_inventory', id));
+        // Normalize ID (Force Uppercase for Inventory tags)
+        const normalizedId = id.toUpperCase();
         
-        if (qrDoc.exists()) {
-          const qrData = qrDoc.data();
-          console.log("[SCAN] Inventory profile found:", qrData.status);
-          
-          if ((qrData.status === 'assigned' || qrData.status === 'mapped') && qrData.mappedVehicleId) {
-            console.log("[SCAN] Node is mapped to vehicle:", qrData.mappedVehicleId);
-            const vDoc = await getDoc(doc(db, 'vehicles', qrData.mappedVehicleId));
-            if (vDoc.exists()) {
+        // 1. Try Inventory Lookup (Physical Tag ID)
+        const qrDoc = await getDoc(doc(db, 'qr_inventory', normalizedId));
+        
+          if (qrDoc.exists()) {
+            const qrData = qrDoc.data() as any;
+            console.log("[SCAN] Inventory profile found:", qrData.status, "Mapped to:", qrData.mappedVehicleId);
+            
+            // Check status against all possible "mapped" values
+            const isMapped = qrData.status === 'assigned' || qrData.status === 'mapped' || qrData.status === 'active';
+            
+            if (isMapped && qrData.mappedVehicleId) {
+              console.log("[SCAN] Node is assigned to vehicle:", qrData.mappedVehicleId);
+              const vDoc = await getDoc(doc(db, 'vehicles', qrData.mappedVehicleId));
+              if (vDoc.exists()) {
               const vData = { ...vDoc.data(), id: vDoc.id } as Vehicle;
               if (vData.isDeleted) {
                 setError('This safety terminal has been decommissioned.');
@@ -126,12 +132,16 @@ export default function PublicScan() {
               setLoading(false);
               return;
             } else {
-              console.warn("[SCAN] Referenced vehicle document missing");
+              console.warn("[SCAN] Referenced vehicle document missing in database:", qrData.mappedVehicleId);
+              setError(`Reference Integrity Error: This node (ID: ${normalizedId}) is marked as ${qrData.status} but the associated vehicle profile (${qrData.mappedVehicleId}) is missing. Please contact support.`);
+              setLoading(false);
+              return;
             }
           }
           
           // If in inventory but not mapped/assigned properly
-          setError('This MyParkSaathi node is ready but not yet mapped. Please link it to a vehicle via the Partner Portal.');
+          console.log("[SCAN] ID exists in inventory but mapping criteria not met. Current Status:", qrData.status, "Vehicle ID:", qrData.mappedVehicleId);
+          setError(`This MyParkSaathi node is ready but not yet mapped (System Status: ${qrData.status || 'UNSET'}). Please link it to a vehicle via the Partner Portal.`);
           setLoading(false);
           return;
         }

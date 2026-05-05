@@ -47,12 +47,14 @@ export default function RegisterVehicle() {
         body: fd
       });
 
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        throw new Error(errData.details || 'AI Scan failed on server');
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("AI engine returned invalid response format. Please try again or enter manually.");
       }
       
       const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'AI Scan failed');
+
       if (data.vehicleNumber) {
         setFormData(prev => ({ ...prev, vehicleNumber: data.vehicleNumber.toUpperCase() }));
       } else {
@@ -60,14 +62,13 @@ export default function RegisterVehicle() {
       }
     } catch (err: any) {
       console.error('AI Scan failed:', err);
-      setApiError('Auto-scan failed. Please enter the number manually.');
+      setApiError(err.message || 'Auto-scan failed. Please enter the number manually.');
     } finally {
       setIsAiScanning(false);
     }
   };
 
   const [transactionId, setTransactionId] = useState('');
-  const [screenshot, setScreenshot] = useState<File | null>(null);
   const [paymentVerified, setPaymentVerified] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
@@ -78,59 +79,15 @@ export default function RegisterVehicle() {
   const handleNext = () => setStep(s => s + 1);
   const handleBack = () => setStep(s => s - 1);
 
-  const handleScreenshotChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null;
-    if (file && file.size > 8 * 1024 * 1024) { // 8MB limit
-      setApiError('Screenshot too large. Please use a file smaller than 8MB.');
-      setScreenshot(null);
-      e.target.value = '';
-      return;
-    }
-    setScreenshot(file);
-    if (file) setApiError(null);
-  };
-
   const submitPayment = async () => {
-    if (!transactionId || !screenshot) {
-      setApiError('Please provide both the Transaction ID and a screenshot.');
+    if (!transactionId) {
+      setApiError('Please provide the Transaction ID.');
       return;
     }
     setLoading(true);
     setApiError(null);
     
     try {
-      const formDataToSend = new FormData();
-      formDataToSend.append('screenshot', screenshot);
-      formDataToSend.append('transactionId', transactionId);
-      formDataToSend.append('userId', user?.uid || '');
-
-      const apiResponse = await fetch('/api/submitPayment', {
-        method: 'POST',
-        body: formDataToSend
-      });
-
-      let errorData: any = null;
-      const responseText = await apiResponse.text();
-      
-      try {
-        if (responseText) {
-          errorData = JSON.parse(responseText);
-        }
-      } catch (e) {
-        console.error("Failed to parse server response:", responseText);
-      }
-
-      if (!apiResponse.ok) {
-        throw new Error(errorData?.message || errorData?.error || `Server responded with ${apiResponse.status}: ${responseText.substring(0, 50)}`);
-      }
-
-      if (!errorData) {
-        throw new Error("Empty success response from server");
-      }
-
-      const { scrubbedImage } = errorData;
-
-      // Continue with Firestore storage
       const vehicleRef = doc(collection(db, 'vehicles'));
       const expiryDate = new Date();
       expiryDate.setFullYear(expiryDate.getFullYear() + (formData.planId === '5yr' ? 5 : 2));
@@ -153,14 +110,14 @@ export default function RegisterVehicle() {
         transactionId,
         amount: formData.planId === '5yr' ? 1000 : 500,
         status: 'pending',
-        scrubbedScreenshotUrl: scrubbedImage,
+        scrubbedScreenshotUrl: null,
         createdAt: serverTimestamp(),
       });
 
       setStep(4);
     } catch (err: any) {
-      console.error("Payment error:", err);
-      setApiError(err.message);
+      console.error("Submission failure:", err);
+      setApiError(err.message || 'Error saving registration data.');
     } finally {
       setLoading(false);
     }
@@ -398,18 +355,9 @@ export default function RegisterVehicle() {
                    <input 
                      type="text"
                      value={transactionId}
-                     onChange={(e) => setTransactionId(e.target.value)}
+                     onChange={(e) => setTransactionId(e.target.value.toUpperCase())}
                      placeholder="e.g. 123456789012"
                      className="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-blue-500 outline-none font-bold uppercase text-slate-900"
-                   />
-                 </div>
-                 <div>
-                   <label className="text-xs font-black uppercase text-slate-500 tracking-wider ml-1 mb-2 block">Upload Screenshot</label>
-                   <input 
-                     type="file"
-                     accept="image/*"
-                     onChange={handleScreenshotChange}
-                     className="w-full bg-white border border-slate-200 rounded-xl py-3 px-4 outline-none font-medium text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 file:cursor-pointer"
                    />
                  </div>
                </div>
@@ -417,13 +365,13 @@ export default function RegisterVehicle() {
             
             <button 
               onClick={submitPayment}
-              disabled={loading}
+              disabled={loading || !transactionId}
               className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
             >
               {loading ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  Verifying Integrities...
+                  Verifying...
                 </>
               ) : (
                 <>
@@ -433,7 +381,7 @@ export default function RegisterVehicle() {
               )}
             </button>
             <p className="text-[10px] text-center text-slate-400 mt-4 font-medium uppercase tracking-widest leading-relaxed">
-              * Image metadata will be automatically scrubbed by our API to protect your privacy.
+              * Verification usually takes 2-4 working hours
             </p>
             <button 
               onClick={handleBack} 
@@ -462,7 +410,7 @@ export default function RegisterVehicle() {
                   <h1 className="text-2xl font-black text-slate-900 mb-2">Awaiting Admin Verification</h1>
                   <p className="text-slate-500 mb-8 max-w-sm mx-auto text-sm leading-relaxed">
                     Your transaction <span className="font-bold text-slate-700">{transactionId}</span> has been securely submitted. 
-                    An administrator is actively reviewing the screenshot. This page will automatically update once approved.
+                    An administrator is actively reviewing the transaction. This page will automatically update once approved.
                   </p>
                 </>
               ) : (
@@ -478,10 +426,30 @@ export default function RegisterVehicle() {
                   
                   <button 
                     onClick={() => navigate('/dashboard')}
-                    className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold tracking-widest uppercase text-xs hover:bg-slate-800 transition-colors flex items-center justify-center gap-2"
+                    className="w-full py-4 bg-slate-900 text-white rounded-xl font-bold tracking-widest uppercase text-xs hover:bg-slate-800 transition-colors flex items-center justify-center gap-2 mb-3"
                   >
                     <Download className="w-4 h-4" />
                     Reveal Secret QR Code
+                  </button>
+                  <button 
+                    onClick={() => {
+                      setFormData({
+                        vehicleNumber: '',
+                        ownerName: '',
+                        phone: '',
+                        whatsapp: '',
+                        emergencyContact: '',
+                        planId: '2yr'
+                      });
+                      setTransactionId('');
+                      setPaymentVerified(false);
+                      setApiError(null);
+                      setStep(1);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className="w-full py-4 bg-slate-100 text-slate-600 rounded-xl font-bold tracking-widest uppercase text-xs hover:bg-slate-200 transition-colors"
+                  >
+                    Register Another Vehicle
                   </button>
                 </>
               )}

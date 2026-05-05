@@ -9,6 +9,8 @@ import PublicScan from './pages/PublicScan';
 import RegisterVehicle from './pages/RegisterVehicle';
 import PartnerOnboarding from './pages/PartnerOnboarding';
 
+import { InstallPWA } from './components/InstallPWA';
+
 export default function App() {
   const { user, loading } = useAuth();
 
@@ -26,6 +28,7 @@ export default function App() {
   return (
     <Router>
       <div className="flex flex-col min-h-screen font-sans selection:bg-blue-100 selection:text-blue-900">
+        <InstallPWA />
         <Navbar />
         <main className="flex-grow">
           <Routes>

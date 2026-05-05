@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Shield, Phone, MessageCircle, AlertCircle, QrCode, ArrowRight, Zap, Globe, Lock } from 'lucide-react';
+import { Shield, Phone, MessageCircle, AlertCircle, QrCode, ArrowRight, Zap, Globe, Lock, Smartphone } from 'lucide-react';
 import { motion } from 'motion/react';
 
 const FeatureBubble = ({ icon: Icon, title, className = "" }: { icon: any, title: string, className?: string }) => (
@@ -53,10 +53,15 @@ export default function Landing() {
                 Onboard Vehicle
                 <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
-              <div className="flex items-center gap-4 text-slate-400">
-                <div className="w-12 h-px bg-slate-200" />
-                <span className="text-[10px] font-black uppercase tracking-widest">Enterprise Ready</span>
-              </div>
+              <button
+                onClick={() => window.dispatchEvent(new Event('beforeinstallprompt_custom_trigger'))}
+                className="flex items-center gap-2 group"
+              >
+                <div className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center group-hover:border-blue-600 transition-colors">
+                  <Smartphone className="w-4 h-4 text-slate-400 group-hover:text-blue-600 transition-colors" />
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 group-hover:text-slate-900">Install App</span>
+              </button>
             </div>
           </motion.div>
         </div>

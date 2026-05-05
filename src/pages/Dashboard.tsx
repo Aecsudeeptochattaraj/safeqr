@@ -6,7 +6,7 @@ import { UserRole } from '../types';
 import { Cpu, Loader2 } from 'lucide-react';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -17,6 +17,17 @@ function cn(...inputs: ClassValue[]) {
 
 export default function Dashboard() {
   const { profile, loading } = useAuth();
+
+  useEffect(() => {
+    // Auto-trigger install prompt once per session when landing on any dashboard
+    const hasTriggeredThisSession = sessionStorage.getItem('pwa_auto_triggered');
+    if (!window.matchMedia('(display-mode: standalone)').matches && !hasTriggeredThisSession) {
+      setTimeout(() => {
+        window.dispatchEvent(new Event('beforeinstallprompt_custom_trigger'));
+        sessionStorage.setItem('pwa_auto_triggered', 'true');
+      }, 2000); // Small delay for better UX
+    }
+  }, []);
 
   if (loading) return (
     <div className="flex h-screen items-center justify-center bg-slate-50">

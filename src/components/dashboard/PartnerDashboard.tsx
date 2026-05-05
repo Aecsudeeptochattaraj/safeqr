@@ -3,11 +3,12 @@ import { db } from '../../lib/firebase';
 import { collection, query, where, onSnapshot, doc, deleteDoc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../../hooks/useAuth';
 import { Vehicle, QRInventory } from '../../types';
-import { Coins, Plus, Users, Package, QrCode, Download, Loader2, Car, Printer, Trash2, ShieldX } from 'lucide-react';
+import { Coins, Plus, Users, Package, QrCode, Download, Loader2, Car, Printer, Trash2, ShieldX, Smartphone } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRCodeCanvas } from 'qrcode.react';
+import { motion } from 'motion/react';
 import JSZip from 'jszip';
 import { drawBrandedQR } from '../../lib/qrBranding';
 
@@ -35,6 +36,11 @@ export default function PartnerDashboard() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [myStock, setMyStock] = useState<QRInventory[]>([]);
   const [isZipping, setIsZipping] = useState(false);
+  const [isPWA, setIsPWA] = useState(false);
+
+  useEffect(() => {
+    setIsPWA(window.matchMedia('(display-mode: standalone)').matches);
+  }, []);
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
@@ -228,6 +234,37 @@ export default function PartnerDashboard() {
            </Link>
         </div>
       </div>
+
+      {/* PWA Promo for Partners */}
+      {!isPWA && (
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-10 bg-slate-900 rounded-3xl p-8 text-white flex flex-col md:flex-row items-center justify-between gap-8 border border-white/10 shadow-2xl overflow-hidden relative group"
+        >
+          <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform duration-700">
+            <Smartphone className="w-48 h-48 rotate-12" />
+          </div>
+          <div className="flex items-center gap-6 relative z-10">
+            <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+              <Download className="w-8 h-8 text-white animate-bounce" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-[9px] font-black uppercase tracking-widest border border-blue-500/20">Mobile Native</span>
+                <h2 className="text-2xl font-black tracking-tight uppercase italic">Partner Portal App</h2>
+              </div>
+              <p className="text-slate-400 text-sm font-bold uppercase tracking-tight">Onboard customers and print QR scans directly from home screen</p>
+            </div>
+          </div>
+          <button 
+            onClick={() => window.dispatchEvent(new Event('beforeinstallprompt_custom_trigger'))}
+            className="px-10 py-4 bg-white text-slate-900 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-50 transition-all active:scale-95 shadow-xl relative z-10"
+          >
+            Get Mobile App
+          </button>
+        </motion.div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
         <StatTile label="Total Earnings" value={`₹${stats.earnings}`} color="bg-green-600" />

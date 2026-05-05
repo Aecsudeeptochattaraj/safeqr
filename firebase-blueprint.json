@@ -92,7 +92,7 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "status": { "type": "string", "enum": ["available", "assigned"] },
+        "status": { "type": "string", "enum": ["available", "assigned", "mapped", "expired"] },
         "partnerUid": { "type": "string" },
         "mappedVehicleId": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
