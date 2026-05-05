@@ -134,17 +134,30 @@ export function InstallPWA() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-[12px] font-black text-blue-600 mb-3">1</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Warning for Incognito/Preview */}
+                  <div className="col-span-1 sm:col-span-2 bg-amber-50/50 border border-amber-200 rounded-2xl p-4 flex gap-3">
+                    <div className="w-8 h-8 bg-amber-100 rounded-xl flex items-center justify-center shrink-0">
+                      <Info className="w-4 h-4 text-amber-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-[10px] font-black uppercase text-amber-900 leading-tight">Installation Tip</p>
+                      <p className="text-[9px] text-amber-700 font-bold leading-relaxed mt-1">
+                        If "Install" isn't showing, ensure you are <span className="font-black underline">NOT in Incognito/Private mode</span> and using a supported browser like Chrome or Safari.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50/80 backdrop-blur-sm rounded-2xl p-4 border border-slate-100 group hover:border-blue-200 transition-colors">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-[12px] font-black text-blue-600 mb-3 group-hover:scale-110 transition-transform">1</div>
                     <p className="text-[11px] text-slate-600 font-bold uppercase tracking-tight leading-tight">
                       {isIOS 
                         ? 'Tap "Share" button in Safari' 
                         : 'Tap "3 Dots" in address bar'}
                     </p>
                   </div>
-                  <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-[12px] font-black text-blue-600 mb-3">2</div>
+                  <div className="bg-slate-50/80 backdrop-blur-sm rounded-2xl p-4 border border-slate-100 group hover:border-blue-200 transition-colors">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-[12px] font-black text-blue-600 mb-3 group-hover:scale-110 transition-transform">2</div>
                     <p className="text-[11px] text-slate-600 font-bold uppercase tracking-tight leading-tight">
                       {isIOS 
                         ? 'Select "Add to Home Screen"' 
