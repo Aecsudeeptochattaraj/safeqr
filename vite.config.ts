@@ -12,7 +12,14 @@ export default defineConfig(({mode}) => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        injectRegister: 'auto',
+        injectRegister: 'inline',
+        workbox: {
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+          cleanupOutdatedCaches: true,
+          clientsClaim: true,
+          skipWaiting: true,
+          navigateFallback: 'index.html',
+        },
         includeAssets: ['pwa-192x192.svg', 'pwa-512x512.svg'],
         manifest: {
           name: 'My Park Saathi',
@@ -28,18 +35,20 @@ export default defineConfig(({mode}) => {
             {
               src: 'pwa-192x192.svg',
               sizes: '192x192',
-              type: 'image/svg+xml'
-            },
-            {
-              src: 'pwa-512x512.svg',
-              sizes: '512x512',
-              type: 'image/svg+xml'
+              type: 'image/svg+xml',
+              purpose: 'any'
             },
             {
               src: 'pwa-512x512.svg',
               sizes: '512x512',
               type: 'image/svg+xml',
               purpose: 'any'
+            },
+            {
+              src: 'pwa-512x512.svg',
+              sizes: '192x192',
+              type: 'image/svg+xml',
+              purpose: 'maskable'
             },
             {
               src: 'pwa-512x512.svg',
@@ -50,7 +59,8 @@ export default defineConfig(({mode}) => {
           ]
         },
         devOptions: {
-          enabled: true
+          enabled: true,
+          type: 'module'
         }
       })
     ],

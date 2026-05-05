@@ -7,8 +7,12 @@ export function InstallPWA() {
   const [isVisible, setIsVisible] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [isInIframe, setIsInIframe] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
 
   useEffect(() => {
+    // Check if already installed
+    setIsStandalone(window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true);
+
     // Check if running in an iframe (like AI Studio preview)
     setIsInIframe(window.self !== window.top);
 
@@ -53,6 +57,7 @@ export function InstallPWA() {
     setIsVisible(false);
   };
 
+  if (isStandalone) return null;
   if (!isVisible && !isIOS) return null;
 
   return (
@@ -69,13 +74,13 @@ export function InstallPWA() {
             
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
-                  <Download className="w-5 h-5 text-blue-600" />
+                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200">
+                  <Smartphone className="w-5 h-5 text-white animate-pulse" />
                 </div>
                 <div>
-                  <h3 className="text-[11px] font-black uppercase text-slate-800 tracking-wider">Install My Park Saathi</h3>
+                  <h3 className="text-[11px] font-black uppercase text-slate-800 tracking-wider">Install App</h3>
                   <p className="text-[9px] text-slate-500 font-bold uppercase tracking-tight">
-                    {isIOS ? 'Must use Share Menu' : 'Faster access to your QR codes'}
+                    {isIOS ? 'Must use Share Menu' : 'Add to your home screen now'}
                   </p>
                 </div>
               </div>
@@ -84,13 +89,13 @@ export function InstallPWA() {
                 {deferredPrompt ? (
                   <button 
                     onClick={handleInstall}
-                    className="px-4 py-2 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-blue-700 active:scale-95 transition-all shadow-md shadow-blue-200"
+                    className="px-6 py-2.5 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-200"
                   >
                     Install Now
                   </button>
                 ) : (
                   <div className="px-3 py-1 bg-amber-50 text-amber-700 text-[8px] font-black uppercase tracking-widest rounded border border-amber-100 italic">
-                    {isIOS ? 'iOS Instructions' : 'Manual Install'}
+                    {isIOS ? 'System Menu' : 'Browser Settings'}
                   </div>
                 )}
                 <button 
