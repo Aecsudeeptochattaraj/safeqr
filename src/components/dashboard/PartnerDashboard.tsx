@@ -37,9 +37,11 @@ export default function PartnerDashboard() {
   const [myStock, setMyStock] = useState<QRInventory[]>([]);
   const [isZipping, setIsZipping] = useState(false);
   const [isPWA, setIsPWA] = useState(false);
+  const [isInIframe, setIsInIframe] = useState(false);
 
   useEffect(() => {
-    setIsPWA(window.matchMedia('(display-mode: standalone)').matches);
+    setIsPWA(window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true);
+    setIsInIframe(window.self !== window.top);
   }, []);
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -238,31 +240,41 @@ export default function PartnerDashboard() {
       {/* PWA Promo for Partners */}
       {!isPWA && (
         <motion.div 
-          initial={{ opacity: 0, y: -20 }}
+          initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-10 bg-slate-900 rounded-3xl p-8 text-white flex flex-col md:flex-row items-center justify-between gap-8 border border-white/10 shadow-2xl overflow-hidden relative group"
+          className="mb-10 relative overflow-hidden"
         >
-          <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform duration-700">
-            <Smartphone className="w-48 h-48 rotate-12" />
-          </div>
-          <div className="flex items-center gap-6 relative z-10">
-            <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20">
-              <Download className="w-8 h-8 text-white animate-bounce" />
+          <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-[32px] p-8 md:p-10 text-white shadow-2xl shadow-slate-200 border border-white/5">
+            <div className="absolute top-0 right-0 p-8 opacity-10 scale-150 rotate-12 hidden md:block">
+              <Smartphone className="w-64 h-64" />
             </div>
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 rounded text-[9px] font-black uppercase tracking-widest border border-blue-500/20">Mobile Native</span>
-                <h2 className="text-2xl font-black tracking-tight uppercase italic">Partner Portal App</h2>
+            
+            <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-10">
+              <div className="flex flex-col md:flex-row items-center gap-8 text-center md:text-left">
+                <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center shadow-lg shadow-blue-500/20">
+                  <Download className="w-10 h-10 text-white animate-bounce" />
+                </div>
+                <div>
+                  <div className="flex items-center justify-center md:justify-start gap-3 mb-2">
+                    <span className="px-3 py-1 bg-blue-500 rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg shadow-blue-500/20">Native Partner App</span>
+                    <h2 className="text-3xl font-black italic tracking-tighter uppercase leading-none">Partner Portal</h2>
+                  </div>
+                  <p className="text-slate-300 text-sm font-bold uppercase tracking-widest opacity-80 max-w-md">
+                    Onboard customers and print QR stickers directly from your home screen.
+                  </p>
+                </div>
               </div>
-              <p className="text-slate-400 text-sm font-bold uppercase tracking-tight">Onboard customers and print QR scans directly from home screen</p>
+
+              <div className="flex flex-col items-center md:items-end gap-4 w-full md:w-auto">
+                <button 
+                  onClick={() => window.dispatchEvent(new Event('beforeinstallprompt_custom_trigger'))}
+                  className="w-full md:w-auto px-12 py-5 bg-white text-slate-900 rounded-2xl font-black text-xs uppercase tracking-[0.3em] hover:bg-blue-50 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl"
+                >
+                  Get Mobile App
+                </button>
+              </div>
             </div>
           </div>
-          <button 
-            onClick={() => window.dispatchEvent(new Event('beforeinstallprompt_custom_trigger'))}
-            className="px-10 py-4 bg-white text-slate-900 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-50 transition-all active:scale-95 shadow-xl relative z-10"
-          >
-            Get Mobile App
-          </button>
         </motion.div>
       )}
 

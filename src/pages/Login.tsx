@@ -1,16 +1,30 @@
+import { useState } from 'react';
 import { signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider } from '../lib/firebase';
 import { Shield, ArrowRight, Smartphone, Download } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function Login() {
+  const [errorStatus, setErrorStatus] = useState<string | null>(null);
+
   const handleLogin = async () => {
+    setErrorStatus(null);
     try {
       await signInWithPopup(auth, googleProvider);
       // Trigger PWA install banner for smart onboarding
       window.dispatchEvent(new Event('beforeinstallprompt_custom_trigger'));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Login failed:', error);
+      
+      if (error.code === 'auth/network-request-failed') {
+        setErrorStatus('Network error. If you are in Incognito/Private mode or have an Ad-Blocker, please try in a normal window.');
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        setErrorStatus('Login window was closed. Please try again.');
+      } else if (error.code === 'auth/unauthorized-domain') {
+        setErrorStatus('This domain is not authorized. Please check your Firebase Console settings.');
+      } else {
+        setErrorStatus('Login failed. Please try again later.');
+      }
     }
   };
 
@@ -57,6 +71,20 @@ export default function Login() {
           </div>
 
           <div className="space-y-6">
+            {errorStatus && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="bg-red-50 border border-red-100 rounded-xl p-4 flex gap-3 overflow-hidden mb-4"
+              >
+                <div className="w-5 h-5 bg-red-600 rounded flex items-center justify-center shrink-0 mt-0.5 shadow-lg shadow-red-200">
+                  <span className="text-[10px] font-black text-white uppercase italic">!</span>
+                </div>
+                <p className="text-[11px] text-red-700 font-bold uppercase tracking-tight leading-tight">
+                  {errorStatus}
+                </p>
+              </motion.div>
+            )}
             <button
               onClick={handleLogin}
               className="w-full flex items-center justify-center gap-4 px-10 py-6 bg-white lg:bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 text-sm font-bold shadow-sm hover:bg-slate-900 hover:text-white transition-all active:scale-95 group"
@@ -74,24 +102,6 @@ export default function Login() {
             <p className="text-[10px] text-slate-400 font-bold uppercase text-center px-8 mt-6">
               By proceeding, you agree to our Terms of Service and Privacy Policy.
             </p>
-
-            <div className="pt-8 mt-8 border-t border-slate-100">
-              <button 
-                onClick={triggerInstall}
-                className="w-full flex items-center justify-between p-4 bg-blue-50/50 rounded-xl group hover:bg-blue-50 transition-colors"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-600 rounded-lg text-white">
-                    <Smartphone className="w-4 h-4" />
-                  </div>
-                  <div className="text-left">
-                    <p className="text-[10px] font-black uppercase text-blue-800 tracking-wider">Install Mobile App</p>
-                    <p className="text-[9px] text-blue-600 font-bold uppercase">Quick Access & Notifications</p>
-                  </div>
-                </div>
-                <Download className="w-4 h-4 text-blue-600 animate-pulse" />
-              </button>
-            </div>
           </div>
         </motion.div>
       </div>

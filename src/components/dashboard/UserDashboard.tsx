@@ -21,9 +21,11 @@ export default function UserDashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedQR, setSelectedQR] = useState<Vehicle | null>(null);
   const [isPWA, setIsPWA] = useState(false);
+  const [isInIframe, setIsInIframe] = useState(false);
 
   useEffect(() => {
-    setIsPWA(window.matchMedia('(display-mode: standalone)').matches);
+    setIsPWA(window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true);
+    setIsInIframe(window.self !== window.top);
     
     if (!user) return;
     const q = query(collection(db, 'vehicles'), where('ownerUid', '==', user.uid));
@@ -72,6 +74,51 @@ export default function UserDashboard() {
           </Link>
         </div>
       </div>
+
+      {!isPWA && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-12 relative overflow-hidden"
+        >
+          <div className="bg-gradient-to-br from-blue-700 to-blue-900 rounded-[32px] p-8 md:p-10 text-white shadow-2xl shadow-blue-200">
+            {/* Background elements */}
+            <div className="absolute top-0 right-0 p-8 opacity-10 scale-150 rotate-12 hidden md:block">
+              <Smartphone className="w-64 h-64" />
+            </div>
+            
+            <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-10">
+              <div className="flex flex-col md:flex-row items-center gap-8 text-center md:text-left">
+                <div className="w-20 h-20 bg-white/10 backdrop-blur-md rounded-3xl flex items-center justify-center shadow-inner border border-white/20">
+                  <Download className="w-10 h-10 text-white animate-bounce" />
+                </div>
+                <div>
+                  <div className="flex items-center justify-center md:justify-start gap-3 mb-2">
+                    <span className="px-3 py-1 bg-blue-500 rounded-full text-[10px] font-black uppercase tracking-[0.2em]">PWA Recommended</span>
+                    <h2 className="text-3xl font-black italic tracking-tighter uppercase leading-none">Install Park Saathi</h2>
+                  </div>
+                  <p className="text-blue-100 text-sm font-bold uppercase tracking-widest opacity-80 max-w-md">
+                    Access your QR codes 5x faster from your home screen with our native mobile experience.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-col items-center md:items-end gap-4 w-full md:w-auto">
+                <button 
+                  onClick={() => window.dispatchEvent(new Event('beforeinstallprompt_custom_trigger'))}
+                  className="w-full md:w-auto px-12 py-5 bg-white text-blue-900 rounded-2xl font-black text-xs uppercase tracking-[0.3em] hover:bg-blue-50 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-blue-950/20"
+                >
+                  Start Installation
+                </button>
+                <div className="flex items-center gap-2 text-[10px] font-black text-blue-300 uppercase tracking-widest">
+                  <ShieldCheck className="w-3 h-3" />
+                  Secure & Lightweight
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">

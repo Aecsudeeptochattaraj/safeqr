@@ -78,9 +78,9 @@ export function InstallPWA() {
                   <Smartphone className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-[14px] font-black uppercase text-slate-900 tracking-tight leading-none">Install Park Saathi</h3>
+                  <h3 className="text-[14px] font-black uppercase text-slate-900 tracking-tight leading-none">Install Park Saathi App</h3>
                   <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1.5 opacity-80">
-                    {isIOS ? 'Native experience required' : 'Fast home screen access'}
+                    {isIOS ? 'Use Safari menu to add' : 'Faster access to your QR codes'}
                   </p>
                 </div>
               </div>
@@ -95,8 +95,8 @@ export function InstallPWA() {
                   </button>
                 ) : (
                   <div className="flex flex-col items-end">
-                    <span className="text-[8px] font-black text-amber-600 uppercase tracking-widest italic mb-1">Incomplete Setup</span>
-                    <div className="px-3 py-1 bg-amber-50 text-amber-700 text-[10px] font-black uppercase tracking-widest rounded-lg border border-amber-100">
+                    <span className="text-[8px] font-black text-amber-600 uppercase tracking-widest italic mb-1 shrink-0">Setup Required</span>
+                    <div className="px-3 py-1 bg-amber-50 text-amber-700 text-[9px] font-black uppercase tracking-widest rounded-lg border border-amber-100 whitespace-nowrap">
                       {isIOS ? 'Safari Menu' : 'Browser Settings'}
                     </div>
                   </div>
@@ -112,61 +112,6 @@ export function InstallPWA() {
                 </button>
               </div>
             </div>
-
-            {/* Instruction Panel */}
-            {(!deferredPrompt || isInIframe) && (
-              <motion.div 
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                className="mt-6 pt-6 border-t border-slate-100 space-y-4"
-              >
-                {isInIframe && (
-                  <div className="bg-red-50 border border-red-100 rounded-2xl p-4 flex gap-4 mb-2">
-                    <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-red-200">
-                      <ExternalLink className="w-5 h-5 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-[11px] font-black uppercase text-red-900 leading-tight">Installation Blocked</p>
-                      <p className="text-[10px] text-red-700 font-medium leading-relaxed mt-1">
-                        You are viewing in a sandboxed preview. Tap <span className="font-black bg-white/50 px-1 rounded">↗ Open in New Tab</span> at the top right to enable native installation.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Warning for Incognito/Preview */}
-                  <div className="col-span-1 sm:col-span-2 bg-amber-50/50 border border-amber-200 rounded-2xl p-4 flex gap-3">
-                    <div className="w-8 h-8 bg-amber-100 rounded-xl flex items-center justify-center shrink-0">
-                      <Info className="w-4 h-4 text-amber-600" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-[10px] font-black uppercase text-amber-900 leading-tight">Installation Tip</p>
-                      <p className="text-[9px] text-amber-700 font-bold leading-relaxed mt-1">
-                        If "Install" isn't showing, ensure you are <span className="font-black underline">NOT in Incognito/Private mode</span> and using a supported browser like Chrome or Safari.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="bg-slate-50/80 backdrop-blur-sm rounded-2xl p-4 border border-slate-100 group hover:border-blue-200 transition-colors">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-[12px] font-black text-blue-600 mb-3 group-hover:scale-110 transition-transform">1</div>
-                    <p className="text-[11px] text-slate-600 font-bold uppercase tracking-tight leading-tight">
-                      {isIOS 
-                        ? 'Tap "Share" button in Safari' 
-                        : 'Tap "3 Dots" in address bar'}
-                    </p>
-                  </div>
-                  <div className="bg-slate-50/80 backdrop-blur-sm rounded-2xl p-4 border border-slate-100 group hover:border-blue-200 transition-colors">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-[12px] font-black text-blue-600 mb-3 group-hover:scale-110 transition-transform">2</div>
-                    <p className="text-[11px] text-slate-600 font-bold uppercase tracking-tight leading-tight">
-                      {isIOS 
-                        ? 'Select "Add to Home Screen"' 
-                        : 'Select "Install App"'}
-                    </p>
-                  </div>
-                </div>
-              </motion.div>
-            )}
           </div>
         </motion.div>
       )}

@@ -67,9 +67,11 @@ export default function AdminDashboard() {
   });
   const [view, setView] = useState<'overview' | 'insights' | 'feedback' | 'supply_chain' | 'audit_logs' | 'qr_management' | 'fleet' | 'users' | 'financials' | 'projection' | 'payments'>('overview');
   const [isPWA, setIsPWA] = useState(false);
+  const [isInIframe, setIsInIframe] = useState(false);
 
   useEffect(() => {
-    setIsPWA(window.matchMedia('(display-mode: standalone)').matches);
+    setIsPWA(window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true);
+    setIsInIframe(window.self !== window.top);
   }, []);
 
   const [feedbacks, setFeedbacks] = useState<any[]>([]);
@@ -288,34 +290,44 @@ export default function AdminDashboard() {
           {/* PWA Promo for Admins */}
           {!isPWA && (
             <motion.div 
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-white border-2 border-blue-600 rounded-3xl p-8 text-slate-900 shadow-2xl shadow-blue-100 flex flex-col md:flex-row items-center justify-between gap-8 overflow-hidden relative group"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="relative overflow-hidden"
             >
-              <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform duration-700">
-                <Smartphone className="w-64 h-64 rotate-12" />
-              </div>
-              
-              <div className="relative z-10 flex flex-row items-center gap-6">
-                <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200">
-                  <Download className="w-8 h-8 text-white animate-bounce" />
+              <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-[32px] p-8 md:p-10 text-white shadow-2xl shadow-slate-200 border border-white/5">
+                <div className="absolute top-0 right-0 p-8 opacity-10 scale-150 rotate-12 hidden md:block">
+                  <Smartphone className="w-64 h-64" />
                 </div>
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-[9px] font-black uppercase tracking-widest">Admin PWA</span>
-                    <h2 className="text-2xl font-black tracking-tight text-slate-900 uppercase italic leading-none">System Native Console</h2>
+                
+                <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-10">
+                  <div className="flex flex-col md:flex-row items-center gap-8 text-center md:text-left">
+                    <div className="w-20 h-20 bg-white/10 backdrop-blur-md rounded-3xl flex items-center justify-center shadow-inner border border-white/20">
+                      <LayoutDashboard className="w-10 h-10 text-white" />
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-center md:justify-start gap-3 mb-2">
+                        <span className="px-3 py-1 bg-blue-600 rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg shadow-blue-500/20">System Native</span>
+                        <h2 className="text-3xl font-black italic tracking-tighter uppercase leading-none">Admin Console App</h2>
+                      </div>
+                      <p className="text-slate-300 text-sm font-bold uppercase tracking-widest opacity-80 max-w-md">
+                        Monitor global telemetry with zero latency from your home screen.
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-slate-500 text-sm font-bold uppercase tracking-tight">Monitor global telemetry with zero latency from your home screen</p>
-                </div>
-              </div>
 
-              <div className="flex flex-col sm:flex-row items-center gap-4 relative z-10 w-full md:w-auto">
-                <button 
-                  onClick={() => window.dispatchEvent(new Event('beforeinstallprompt_custom_trigger'))}
-                  className="w-full sm:w-auto px-10 py-4 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl shadow-blue-200 active:scale-95"
-                >
-                  Install Admin App
-                </button>
+                  <div className="flex flex-col items-center md:items-end gap-4 w-full md:w-auto">
+                    <button 
+                      onClick={() => window.dispatchEvent(new Event('beforeinstallprompt_custom_trigger'))}
+                      className="w-full md:w-auto px-12 py-5 bg-white text-slate-900 rounded-2xl font-black text-xs uppercase tracking-[0.3em] hover:bg-slate-50 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl"
+                    >
+                      Install Console
+                    </button>
+                    <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      <ShieldCheck className="w-3 h-3 text-blue-500" />
+                      Zero Latency Feed
+                    </div>
+                  </div>
+                </div>
               </div>
             </motion.div>
           )}
