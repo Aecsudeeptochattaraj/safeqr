@@ -106,12 +106,12 @@ export default function UserDashboard() {
               <div className="flex flex-col items-center md:items-end gap-4 w-full md:w-auto">
                 <button 
                   onClick={() => window.dispatchEvent(new Event('beforeinstallprompt_custom_trigger'))}
-                  className="w-full md:w-auto px-12 py-5 bg-white text-blue-900 rounded-2xl font-black text-xs uppercase tracking-[0.3em] hover:bg-blue-50 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-blue-950/20"
+                  className="w-full md:w-auto px-12 py-5 bg-white text-blue-900 rounded-2xl font-black text-xs uppercase tracking-[0.3em] hover:bg-blue-50 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-blue-950/20 flex items-center justify-center gap-3"
                 >
                   Start Installation
                 </button>
                 <div className="flex items-center gap-2 text-[10px] font-black text-blue-300 uppercase tracking-widest">
-                  <ShieldCheck className="w-3 h-3" />
+                  <ShieldCheck className="w-3 h-3 text-blue-500" />
                   Secure & Lightweight
                 </div>
               </div>

@@ -268,7 +268,7 @@ export default function PartnerDashboard() {
               <div className="flex flex-col items-center md:items-end gap-4 w-full md:w-auto">
                 <button 
                   onClick={() => window.dispatchEvent(new Event('beforeinstallprompt_custom_trigger'))}
-                  className="w-full md:w-auto px-12 py-5 bg-white text-slate-900 rounded-2xl font-black text-xs uppercase tracking-[0.3em] hover:bg-blue-50 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl"
+                  className="w-full md:w-auto px-12 py-5 bg-white text-slate-900 rounded-2xl font-black text-xs uppercase tracking-[0.3em] hover:bg-blue-50 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl flex items-center justify-center gap-3"
                 >
                   Get Mobile App
                 </button>

@@ -64,40 +64,39 @@ export function InstallPWA() {
     <AnimatePresence>
       {(isVisible || (isIOS && !window.matchMedia('(display-mode: standalone)').matches && isVisible)) && (
         <motion.div 
-          initial={{ y: -50, opacity: 0 }}
+          initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          exit={{ y: -50, opacity: 0 }}
-          className="fixed top-4 left-4 right-4 z-[9999] pointer-events-none"
+          exit={{ y: -20, opacity: 0 }}
+          className="fixed top-20 right-4 lg:right-8 z-[9999] pointer-events-none w-full max-w-[360px] px-4 sm:px-0"
         >
-          <div className="bg-white border border-blue-100 shadow-2xl shadow-blue-200/50 rounded-2xl p-4 flex flex-col pointer-events-auto max-w-lg mx-auto overflow-hidden relative">
+          <div className="bg-white/95 backdrop-blur-xl border border-slate-100 shadow-2xl shadow-blue-900/10 rounded-2xl p-4 flex flex-col pointer-events-auto overflow-hidden relative">
             <div className="absolute top-0 left-0 w-1 h-full bg-blue-600" />
             
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-blue-600 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-200">
-                  <Smartphone className="w-6 h-6 text-white" />
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200 shrink-0">
+                  <Smartphone className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-[14px] font-black uppercase text-slate-900 tracking-tight leading-none">Install Park Saathi App</h3>
-                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1.5 opacity-80">
-                    {isIOS ? 'Use Safari menu to add' : 'Faster access to your QR codes'}
+                  <h3 className="text-[12px] font-black uppercase text-slate-900 tracking-tight leading-none">Install App</h3>
+                  <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest mt-1 opacity-70">
+                    Fast Home Screen Access
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 {deferredPrompt ? (
                   <button 
                     onClick={handleInstall}
-                    className="px-8 py-3 bg-blue-600 text-white text-[11px] font-black uppercase tracking-[0.2em] rounded-xl hover:bg-blue-700 active:scale-95 transition-all shadow-xl shadow-blue-200"
+                    className="px-4 py-2 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-200 whitespace-nowrap"
                   >
-                    Install Now
+                    Install
                   </button>
                 ) : (
-                  <div className="flex flex-col items-end">
-                    <span className="text-[8px] font-black text-amber-600 uppercase tracking-widest italic mb-1 shrink-0">Setup Required</span>
-                    <div className="px-3 py-1 bg-amber-50 text-amber-700 text-[9px] font-black uppercase tracking-widest rounded-lg border border-amber-100 whitespace-nowrap">
-                      {isIOS ? 'Safari Menu' : 'Browser Settings'}
+                  <div className="hidden sm:flex flex-col items-end">
+                    <div className="px-2 py-1 bg-amber-50 text-amber-700 text-[8px] font-black uppercase tracking-widest rounded-lg border border-amber-100 italic">
+                      {isIOS ? 'Safari Menu' : 'Browser App'}
                     </div>
                   </div>
                 )}
@@ -106,9 +105,9 @@ export function InstallPWA() {
                     setIsVisible(false);
                     sessionStorage.setItem('pwa_dismissed', 'true');
                   }}
-                  className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition-colors"
+                  className="w-8 h-8 rounded-lg bg-slate-50 flex items-center justify-center text-slate-300 hover:text-slate-500 hover:bg-slate-100 transition-colors shrink-0"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
             </div>
