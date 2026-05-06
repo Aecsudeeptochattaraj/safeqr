@@ -5,6 +5,7 @@ import { doc, onSnapshot, setDoc, serverTimestamp, getDoc } from 'firebase/fires
 import { AppUser } from '../types';
 
 import { EmailService, EmailEventType } from '../services/emailService';
+import { SYSTEM_CONFIG } from '../constants/system';
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
@@ -16,12 +17,20 @@ export function useAuth() {
     if (user && profile) {
       const email = profile.email;
       const name = profile.displayName;
+      
+      // Ensure email exists before sending
+      if (email) {
+        EmailService.send(EmailEventType.LOGOUT_ALERT, {
+          UserName: name || 'User',
+          Email: email,
+          Time: new Date().toLocaleString()
+        }).catch(err => {
+          console.error("[EmailService] Logout notification failure:", err);
+          // Non-blocking for logout itself
+        });
+      }
+      
       await signOut(auth);
-      EmailService.send(EmailEventType.LOGOUT_ALERT, {
-        UserName: name || 'User',
-        Email: email,
-        Time: new Date().toLocaleString()
-      }).catch(err => console.error("Logout email failed:", err));
     } else {
       await signOut(auth);
     }
@@ -31,7 +40,7 @@ export function useAuth() {
     let unsubscribeProfile: (() => void) | null = null;
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      console.log('Auth state changed:', firebaseUser?.email);
+      console.log('[Auth] State changed:', firebaseUser?.email);
       const isNewlyLoggedIn = !user && firebaseUser;
       setUser(firebaseUser);
       
@@ -49,12 +58,12 @@ export function useAuth() {
 
       try {
         const userRef = doc(db, 'users', firebaseUser.uid);
-        
         const docSnap = await getDoc(userRef);
         
         let fetchedProfile: AppUser | null = null;
         if (!docSnap.exists()) {
-          const isSuperAdmin = firebaseUser.email === 'aecsudeepto80@gmail.com';
+          // Initialize profile with dynamic data from Auth provider
+          const isSuperAdmin = firebaseUser.email === SYSTEM_CONFIG.SUPER_ADMIN_EMAIL;
           const newProfile: AppUser = {
             uid: firebaseUser.uid,
             email: firebaseUser.email || '',
@@ -68,7 +77,8 @@ export function useAuth() {
           prevProfileRef.current = newProfile;
         } else {
           const data = docSnap.data() as AppUser;
-          if (firebaseUser.email === 'aecsudeepto80@gmail.com' && data.role !== 'admin') {
+          // Security upgrade: Ensure superadmin always has admin role even if db is out of sync
+          if (firebaseUser.email === SYSTEM_CONFIG.SUPER_ADMIN_EMAIL && data.role !== 'admin') {
              await setDoc(userRef, { role: 'admin' }, { merge: true });
              data.role = 'admin';
           }
@@ -77,8 +87,9 @@ export function useAuth() {
           prevProfileRef.current = data;
         }
 
+        // Notification: Login Success
         const sessionKey = `login_mail_sent_${firebaseUser.uid}`;
-        if (isNewlyLoggedIn && fetchedProfile && !sessionStorage.getItem(sessionKey)) {
+        if (isNewlyLoggedIn && fetchedProfile?.email && !sessionStorage.getItem(sessionKey)) {
           EmailService.send(EmailEventType.LOGIN_SUCCESS, {
             UserName: fetchedProfile.displayName || 'User',
             Email: fetchedProfile.email,
@@ -87,7 +98,9 @@ export function useAuth() {
             Location: 'Detected via Web Browser'
           }).then(() => {
             sessionStorage.setItem(sessionKey, 'true');
-          }).catch(err => console.error("Login email failed:", err));
+          }).catch(err => {
+            console.error("[EmailService] Login notification failure:", err);
+          });
         }
 
         unsubscribeProfile = onSnapshot(userRef, (snap) => {
@@ -96,7 +109,7 @@ export function useAuth() {
             const previousData = prevProfileRef.current;
 
             // Detect meaningful changes to trigger Profile Update email
-            if (previousData && 
+            if (previousData && currentData.email &&
                 (currentData.displayName !== previousData.displayName || 
                  currentData.role !== previousData.role)) {
               
@@ -104,7 +117,9 @@ export function useAuth() {
                 UserName: currentData.displayName || 'User',
                 Email: currentData.email,
                 Time: new Date().toLocaleString()
-              }).catch(err => console.error("Profile update email failed:", err));
+              }).catch(err => {
+                 console.error("[EmailService] Profile update notification failure:", err);
+              });
             }
 
             setProfile(currentData);
@@ -114,7 +129,7 @@ export function useAuth() {
 
         setLoading(false);
       } catch (err) {
-        console.error('Error fetching/creating profile:', err);
+        console.error('[Auth] Profile initialization failure:', err);
         setLoading(false);
       }
     });

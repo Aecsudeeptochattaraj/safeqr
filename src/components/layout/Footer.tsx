@@ -1,5 +1,6 @@
 import { Shield, Smartphone, Download } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { SYSTEM_CONFIG } from '../../constants/system';
 
 export default function Footer() {
   const [isStandalone, setIsStandalone] = useState(false);
@@ -29,19 +30,19 @@ export default function Footer() {
             <div className="space-y-2">
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Direct Contact</p>
               <a 
-                href="mailto:aecsudeepto80@gmail.com" 
+                href={`mailto:${SYSTEM_CONFIG.SUPPORT_EMAIL}`} 
                 className="text-lg font-black text-blue-400 hover:text-blue-300 transition-colors"
               >
-                aecsudeepto80@gmail.com
+                {SYSTEM_CONFIG.SUPPORT_EMAIL}
               </a>
             </div>
           </div>
           <div>
             <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-6">Partnership</h3>
             <ul className="space-y-4">
-              <li><a href="mailto:aecsudeepto80@gmail.com?subject=Business%20Inquiry" className="text-sm text-slate-400 hover:text-white transition-colors">Business with Us</a></li>
-              <li><a href="mailto:aecsudeepto80@gmail.com?subject=Collaboration%20Inquiry" className="text-sm text-slate-400 hover:text-white transition-colors">Collaborate with Us</a></li>
-              <li><a href="mailto:aecsudeepto80@gmail.com?subject=Connect%20Inquiry" className="text-sm text-slate-400 hover:text-white transition-colors">Connect Us</a></li>
+              <li><a href={`mailto:${SYSTEM_CONFIG.SUPPORT_EMAIL}?subject=Business%20Inquiry`} className="text-sm text-slate-400 hover:text-white transition-colors">Business with Us</a></li>
+              <li><a href={`mailto:${SYSTEM_CONFIG.SUPPORT_EMAIL}?subject=Collaboration%20Inquiry`} className="text-sm text-slate-400 hover:text-white transition-colors">Collaborate with Us</a></li>
+              <li><a href={`mailto:${SYSTEM_CONFIG.SUPPORT_EMAIL}?subject=Connect%20Inquiry`} className="text-sm text-slate-400 hover:text-white transition-colors">Connect Us</a></li>
             </ul>
           </div>
           <div>

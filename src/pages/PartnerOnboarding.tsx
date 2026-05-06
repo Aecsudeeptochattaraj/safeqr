@@ -14,6 +14,7 @@ import {
   doc, setDoc, serverTimestamp, collection, query, where, getDocs, updateDoc,
   runTransaction, onSnapshot, orderBy, limit
 } from 'firebase/firestore';
+import { SYSTEM_CONFIG } from '../constants/system';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { QRInventory } from '../types';
@@ -542,12 +543,12 @@ export default function PartnerOnboarding() {
                 <div className="flex justify-center mb-8">
                   <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 relative group">
                     <img 
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=sudeepto84-4@okicici&pn=MyParkSaathi&am=${formData.plan === '5yr' ? 1000 : (formData.plan === '2yr' ? 500 : 250)}&cu=INR`}
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=${SYSTEM_CONFIG.UPI_ID}&pn=MyParkSaathi&am=${formData.plan === '5yr' ? 1000 : (formData.plan === '2yr' ? 500 : 250)}&cu=INR`}
                       alt="Payment QR"
                       className="w-48 h-48 rounded-xl mix-blend-multiply transition-transform group-hover:scale-105"
                     />
                     <div className="mt-4 text-center">
-                       <p className="text-[10px] font-black font-mono text-slate-400 uppercase tracking-widest">sudeepto84-4@okicici</p>
+                       <p className="text-[10px] font-black font-mono text-slate-400 uppercase tracking-widest">{SYSTEM_CONFIG.UPI_ID}</p>
                     </div>
                   </div>
                 </div>
@@ -623,7 +624,7 @@ export default function PartnerOnboarding() {
                        </button>
                        
                        <a 
-                         href="https://wa.me/91XXXXXXXXXX?text=I%20have%20completed%20a%20new%20vehicle%20mapping%20on%20MyParkSaathi"
+                         href={`https://wa.me/${SYSTEM_CONFIG.SUPPORT_WHATSAPP}?text=I%20have%20completed%20a%20new%20vehicle%20mapping%20on%20MyParkSaathi`}
                          target="_blank"
                          rel="noopener noreferrer"
                          className="flex items-center justify-center gap-2 mx-auto w-full max-w-[240px] px-8 py-4 bg-green-600 text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-green-700 transition-all hover:shadow-lg shadow-green-200 active:scale-95"

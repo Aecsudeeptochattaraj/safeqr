@@ -1430,59 +1430,6 @@ export function SystemDiagnostics() {
 
   return (
     <div className="space-y-8">
-      {/* Email Diagnostic */}
-      <div className="bg-white p-10 rounded-[3rem] border-4 border-slate-900 shadow-2xl relative overflow-hidden">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="bg-blue-600 p-3 rounded-2xl">
-            <Mail className="w-6 h-6 text-white" />
-          </div>
-          <div>
-            <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Email Engine Diagnostic</h3>
-            <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Verify delivery and template rendering</p>
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <input 
-              type="email" 
-              placeholder="ENTER ANY EMAIL ADDRESS..." 
-              value={testEmail}
-              onChange={(e) => setTestEmail(e.target.value)}
-              className="flex-1 px-8 py-5 bg-slate-50 border-2 border-slate-200 rounded-2xl font-bold text-slate-900 outline-none focus:border-blue-600 transition-all uppercase placeholder:text-slate-300"
-            />
-            <div className="flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-2xl">
-                <div className={cn("w-3 h-3 rounded-full animate-pulse", status === 'idle' ? 'bg-slate-300' : status === 'sending' ? 'bg-amber-400' : status === 'success' ? 'bg-green-500' : 'bg-red-500')}></div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{status}</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-             {[
-               { id: EmailEventType.LOGIN_SUCCESS, label: 'Login' },
-               { id: EmailEventType.LOGOUT_ALERT, label: 'Logout' },
-               { id: EmailEventType.PROFILE_UPDATE, label: 'Profile' },
-               { id: EmailEventType.SUSPICIOUS_LOGIN, label: 'Security' },
-               { id: EmailEventType.PAYMENT_SUCCESS, label: 'Payment' },
-               { id: EmailEventType.QR_SCAN_ALERT, label: 'Scan Alert' },
-               { id: EmailEventType.VEHICLE_EXPIRY, label: 'Expiry' },
-             ].map((t) => (
-                <button 
-                  key={t.id}
-                  onClick={() => sendTest(t.id as any)}
-                  disabled={status === 'sending'}
-                  className="px-4 py-3 bg-white border-2 border-slate-200 text-slate-900 rounded-xl font-black uppercase text-[9px] tracking-widest hover:border-blue-600 hover:text-blue-600 transition-all active:scale-95 disabled:opacity-50"
-                >
-                  {t.label}
-                </button>
-             ))}
-          </div>
-          
-          {status === 'success' && <p className="text-green-600 text-[10px] font-black uppercase mt-2 border-t border-green-100 pt-4 text-center">Success! Check {testEmail} inbox/spam.</p>}
-          {status === 'error' && <p className="text-red-600 text-[10px] font-black uppercase mt-2 border-t border-red-100 pt-4 text-center">Diagnostic Fault: Authentication or API rejection.</p>}
-        </div>
-      </div>
-
       {/* PWA Diagnostic */}
       <div className="bg-white p-10 rounded-[3rem] border-4 border-blue-600 shadow-2xl relative overflow-hidden">
         <div className="flex items-center gap-4 mb-6">

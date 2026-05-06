@@ -5,6 +5,7 @@ import { Car, Smartphone, MessageCircle, CreditCard, CheckCircle, ShieldCheck, C
 import { useAuth } from '../hooks/useAuth';
 import { db } from '../lib/firebase';
 import { doc, setDoc, serverTimestamp, collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { SYSTEM_CONFIG } from '../constants/system';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -339,9 +340,9 @@ export default function RegisterVehicle() {
                <div className="p-8 space-y-4 bg-white flex flex-col items-center border-b border-slate-100">
                   <div className="text-sm font-black uppercase tracking-widest text-slate-400 mb-2">Scan & Pay ₹{formData.planId === '5yr' ? 1000 : 500}</div>
                   <div className="w-56 h-56 bg-slate-100 rounded-2xl p-4 flex items-center justify-center border-2 border-dashed border-slate-300">
-                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`upi://pay?pa=sudeepto84-4@okicici&pn=VehicleRegistration&am=${formData.planId === '5yr' ? 1000 : 500}&cu=INR`)}`} alt="UPI QR Code" className="w-full h-full object-contain" />
+                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`upi://pay?pa=${SYSTEM_CONFIG.UPI_ID}&pn=VehicleRegistration&am=${formData.planId === '5yr' ? 1000 : 500}&cu=INR`)}`} alt="UPI QR Code" className="w-full h-full object-contain" />
                   </div>
-                  <p className="text-xs font-bold text-slate-500">UPI ID: sudeepto84-4@okicici</p>
+                  <p className="text-xs font-bold text-slate-500">UPI ID: {SYSTEM_CONFIG.UPI_ID}</p>
                </div>
 
                <div className="p-8 space-y-6 bg-slate-50">

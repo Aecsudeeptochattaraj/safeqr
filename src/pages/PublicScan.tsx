@@ -4,6 +4,7 @@ import { db } from '../lib/firebase';
 import { doc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { EmailService, EmailEventType } from '../services/emailService';
 import { Vehicle, AppUser } from '../types';
+import { SYSTEM_CONFIG } from '../constants/system';
 import { Phone, MessageCircle, AlertCircle, Shield, Camera, Send, CheckCircle2, RefreshCw, MapPin, MessageSquare, Star } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
@@ -346,7 +347,7 @@ export default function PublicScan() {
         <div className="flex flex-col gap-3 w-full max-w-xs">
           <button onClick={() => window.location.href = '/'} className="w-full px-8 py-4 bg-gray-900 text-white rounded-2xl font-bold uppercase tracking-widest text-[11px]">MyParkSaathi Home</button>
           <a 
-            href="https://wa.me/91XXXXXXXXXX?text=I%20am%20having%20trouble%20scanning%20a%20MyParkSaathi%20node"
+            href={`https://wa.me/${SYSTEM_CONFIG.SUPPORT_WHATSAPP}?text=I%20am%20having%20trouble%20scanning%20a%20MyParkSaathi%20node`}
             target="_blank"
             rel="noopener noreferrer"
             className="w-full flex items-center justify-center gap-2 px-8 py-4 bg-green-600 text-white rounded-2xl font-bold uppercase tracking-widest text-[11px]"
@@ -496,7 +497,7 @@ export default function PublicScan() {
                   </button>
 
                   <a 
-                    href="https://wa.me/91XXXXXXXXXX?text=Feedback%20on%20MyParkSaathi%20Public%20Scan%20Interface"
+                    href={`https://wa.me/${SYSTEM_CONFIG.SUPPORT_WHATSAPP}?text=Feedback%20on%20MyParkSaathi%20Public%20Scan%20Interface`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="w-full flex items-center justify-center gap-3 p-4 bg-slate-100 text-slate-600 rounded text-[10px] font-bold uppercase tracking-widest hover:bg-slate-200 transition-all border border-slate-200"
