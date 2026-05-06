@@ -1395,17 +1395,23 @@ export function SystemDiagnostics() {
   const [testEmail, setTestEmail] = React.useState('');
   const [status, setStatus] = React.useState<'idle' | 'sending' | 'success' | 'error'>('idle');
 
-  const sendTest = async () => {
+  const sendTest = async (type: EmailEventType) => {
     if (!testEmail) return;
     setStatus('sending');
     try {
-      await EmailService.send(EmailEventType.LOGIN_SUCCESS, {
-        UserName: 'Diagnostics Test User',
+      const testData: any = {
+        UserName: 'Diagnostic Pilot',
         Email: testEmail,
-        Time: new Date().toLocaleTimeString(),
-        Location: 'Manual Diagnostic Test',
-        Device: 'Admin Console'
-      });
+        Time: new Date().toLocaleString(),
+        Location: 'Kolkata, India (HQ)',
+        Device: 'Admin Diagnostic Console',
+        Amount: '499.00',
+        TxnId: 'TXN_' + Math.random().toString(36).substring(2, 9).toUpperCase(),
+        VehicleNumber: 'WB 02 AD 1234',
+        ExpiryDate: '2027-12-31'
+      };
+      
+      await EmailService.send(type, testData);
       setStatus('success');
     } catch (err) {
       console.error(err);
@@ -1432,11 +1438,11 @@ export function SystemDiagnostics() {
           </div>
           <div>
             <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Email Engine Diagnostic</h3>
-            <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Verify delivery to non-admin recipients</p>
+            <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Verify delivery and template rendering</p>
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-6">
           <div className="flex flex-col md:flex-row gap-4">
             <input 
               type="email" 
@@ -1445,16 +1451,35 @@ export function SystemDiagnostics() {
               onChange={(e) => setTestEmail(e.target.value)}
               className="flex-1 px-8 py-5 bg-slate-50 border-2 border-slate-200 rounded-2xl font-bold text-slate-900 outline-none focus:border-blue-600 transition-all uppercase placeholder:text-slate-300"
             />
-            <button 
-              onClick={sendTest}
-              disabled={status === 'sending'}
-              className="px-10 py-5 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs tracking-[0.2em] hover:bg-blue-600 transition-all shadow-xl shadow-slate-200 active:scale-95 disabled:opacity-50"
-            >
-              {status === 'sending' ? 'DISPATCHING...' : 'DISPATCH VERIFICATION'}
-            </button>
+            <div className="flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-2xl">
+                <div className={cn("w-3 h-3 rounded-full animate-pulse", status === 'idle' ? 'bg-slate-300' : status === 'sending' ? 'bg-amber-400' : status === 'success' ? 'bg-green-500' : 'bg-red-500')}></div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{status}</span>
+            </div>
           </div>
-          {status === 'success' && <p className="text-green-600 text-[10px] font-black uppercase mt-2">Success! Verification dispatched to {testEmail}.</p>}
-          {status === 'error' && <p className="text-red-600 text-[10px] font-black uppercase mt-2">Diagnostic Fault: Check system logs.</p>}
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+             {[
+               { id: EmailEventType.LOGIN_SUCCESS, label: 'Login' },
+               { id: EmailEventType.LOGOUT_ALERT, label: 'Logout' },
+               { id: EmailEventType.PROFILE_UPDATE, label: 'Profile' },
+               { id: EmailEventType.SUSPICIOUS_LOGIN, label: 'Security' },
+               { id: EmailEventType.PAYMENT_SUCCESS, label: 'Payment' },
+               { id: EmailEventType.QR_SCAN_ALERT, label: 'Scan Alert' },
+               { id: EmailEventType.VEHICLE_EXPIRY, label: 'Expiry' },
+             ].map((t) => (
+                <button 
+                  key={t.id}
+                  onClick={() => sendTest(t.id as any)}
+                  disabled={status === 'sending'}
+                  className="px-4 py-3 bg-white border-2 border-slate-200 text-slate-900 rounded-xl font-black uppercase text-[9px] tracking-widest hover:border-blue-600 hover:text-blue-600 transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {t.label}
+                </button>
+             ))}
+          </div>
+          
+          {status === 'success' && <p className="text-green-600 text-[10px] font-black uppercase mt-2 border-t border-green-100 pt-4 text-center">Success! Check {testEmail} inbox/spam.</p>}
+          {status === 'error' && <p className="text-red-600 text-[10px] font-black uppercase mt-2 border-t border-red-100 pt-4 text-center">Diagnostic Fault: Authentication or API rejection.</p>}
         </div>
       </div>
 

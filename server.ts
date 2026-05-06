@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import nodemailer from 'nodemailer';
 import cors from 'cors';
+import { Resend } from 'resend';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -168,18 +169,23 @@ apiRouter.post('/scanVehicleDetails', upload.single('image'), async (req, res) =
 
 apiRouter.get('/test', (req, res) => res.json({ status: 'active', ts: Date.now() }));
 
-// --- EMAIL ENGINE (FREE / GMAIL SMTP) ---
+// --- EMAIL ENGINE (RELIA-MAIL BY MYPARKSAATHI) ---
 let transporter: nodemailer.Transporter | null = null;
+let resendClient: Resend | null = null;
+
+const getResend = () => {
+  if (!resendClient && process.env.RESEND_API_KEY) {
+    resendClient = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resendClient;
+};
 
 const getTransporter = () => {
   if (!transporter) {
     const user = process.env.GMAIL_USER;
     const pass = process.env.GMAIL_APP_PASSWORD;
 
-    if (!user || !pass) {
-      console.warn("[MAIL] Credentials missing. Email functionality will be mocked.");
-      return null;
-    }
+    if (!user || !pass) return null;
 
     transporter = nodemailer.createTransport({
       service: 'gmail',
@@ -191,35 +197,63 @@ const getTransporter = () => {
 
 apiRouter.post('/send-email', async (req, res) => {
   const { to, subject, html, previewText } = req.body;
-  console.log(`[MAIL-API] Attempting to send to: ${to}`);
+  const rid = Math.random().toString(36).substring(7);
+  console.log(`[MAIL] [${rid}] Target: ${to}`);
   
   if (!to || !subject || !html) {
     return res.status(400).json({ error: 'MISSING_FIELDS', message: 'Recipient, subject, and content are required.' });
   }
 
-  const mailer = getTransporter();
-  
-  if (!mailer) {
-    console.log(`[MAIL-MOCK] To: ${to}, Subject: ${subject}`);
-    return res.json({ success: true, message: 'Email mocked (Credentials missing)', mocked: true });
+  // A. RESEND (PRIMARY)
+  const resend = getResend();
+  if (resend) {
+    try {
+      const response = await resend.emails.send({
+        from: 'ParkSaathi <notifications@myparksaathi.in>',
+        to: [to],
+        subject: subject,
+        html: html,
+        text: previewText || subject
+      });
+
+      if (response.error) throw response.error;
+      
+      console.log(`[MAIL] [${rid}] RESEND SUCCESS: ${response.data?.id}`);
+      return res.json({ success: true, provider: 'resend', id: response.data?.id });
+    } catch (err: any) {
+      console.error(`[MAIL] [${rid}] RESEND FAIL:`, err.message);
+      // Fall through...
+    }
   }
 
-  try {
-    const userEmail = process.env.GMAIL_USER;
-    await mailer.sendMail({
-      from: `"MyParkSaathi" <${userEmail}>`,
-      to,
-      subject,
-      html,
-      text: previewText || subject // Fallback for clients without HTML support
-    });
-    
-    console.log(`[MAIL-SUCCESS] Sent to ${to}`);
-    res.json({ success: true });
-  } catch (err: any) {
-    console.error("[MAIL-ERROR]", err);
-    res.status(500).json({ error: 'EMAIL_FAILED', message: err.message });
+  // B. GMAIL (FALLBACK)
+  const mailer = getTransporter();
+  if (mailer) {
+    try {
+      const userEmail = process.env.GMAIL_USER;
+      await mailer.sendMail({
+        from: `"MyParkSaathi" <${userEmail}>`,
+        to,
+        subject,
+        html,
+        text: previewText || subject
+      });
+      console.log(`[MAIL] [${rid}] GMAIL SUCCESS`);
+      return res.json({ success: true, provider: 'gmail' });
+    } catch (err: any) {
+      console.error(`[MAIL] [${rid}] GMAIL FAIL:`, err.message);
+      return res.status(500).json({ error: 'EMAIL_FAILED', message: err.message });
+    }
   }
+
+  // C. MOCK (DIAGNOSTIC)
+  console.log(`[MAIL] [${rid}] MOCK DISPATCH: To=${to}, Sub=${subject}`);
+  return res.json({ 
+    success: true, 
+    message: 'Email processed in diagnostic mode (No credentials found)', 
+    mocked: true,
+    rid
+  });
 });
 
 // Global API Error Handler - MUST BE LAST in the router to catch middleware errors (like Multer)

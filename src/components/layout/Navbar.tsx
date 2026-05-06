@@ -6,7 +6,7 @@ import { signOut } from 'firebase/auth';
 import { useAuth } from '../../hooks/useAuth';
 
 export default function Navbar() {
-  const { user, profile } = useAuth();
+  const { user, profile, logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   const navigate = useNavigate();
@@ -21,7 +21,7 @@ export default function Navbar() {
   };
 
   const handleSignOut = async () => {
-    await signOut(auth);
+    await logout();
     navigate('/');
   };
 

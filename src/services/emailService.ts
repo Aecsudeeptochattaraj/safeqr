@@ -2,6 +2,9 @@ import { templates } from './emailTemplates';
 
 export enum EmailEventType {
   LOGIN_SUCCESS = 'LOGIN_SUCCESS',
+  LOGOUT_ALERT = 'LOGOUT_ALERT',
+  PROFILE_UPDATE = 'PROFILE_UPDATE',
+  SUSPICIOUS_LOGIN = 'SUSPICIOUS_LOGIN',
   PAYMENT_SUCCESS = 'PAYMENT_SUCCESS',
   QR_SCAN_ALERT = 'QR_SCAN_ALERT',
   VEHICLE_EXPIRY = 'VEHICLE_EXPIRY',
@@ -32,6 +35,15 @@ export class EmailService {
       switch (type) {
         case EmailEventType.LOGIN_SUCCESS:
           template = templates.LOGIN_SUCCESS(data);
+          break;
+        case EmailEventType.LOGOUT_ALERT:
+          template = templates.LOGOUT_ALERT(data);
+          break;
+        case EmailEventType.PROFILE_UPDATE:
+          template = templates.PROFILE_UPDATE(data);
+          break;
+        case EmailEventType.SUSPICIOUS_LOGIN:
+          template = templates.SUSPICIOUS_LOGIN(data);
           break;
         case EmailEventType.PAYMENT_SUCCESS:
           template = templates.PAYMENT_SUCCESS(data);
