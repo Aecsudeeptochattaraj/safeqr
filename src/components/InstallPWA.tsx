@@ -53,10 +53,18 @@ export function InstallPWA() {
     };
     window.addEventListener('appinstalled', installedHandler);
 
+    const resetHandler = () => {
+      localStorage.removeItem('pwa_install_dismissed');
+      localStorage.removeItem('pwa_installed');
+      setIsVisible(true);
+    };
+    window.addEventListener('pwa_reset_state', resetHandler);
+
     return () => {
       window.removeEventListener('beforeinstallprompt', handler);
       window.removeEventListener('beforeinstallprompt_custom_trigger', customTriggerHandler);
       window.removeEventListener('appinstalled', installedHandler);
+      window.removeEventListener('pwa_reset_state', resetHandler);
     };
   }, [deferredPrompt]); // Re-bind if deferredPrompt changes
 

@@ -1391,7 +1391,7 @@ export function FutureProjection() {
   );
 }
 
-export function EmailEngineDiagnostics() {
+export function SystemDiagnostics() {
   const [testEmail, setTestEmail] = React.useState('');
   const [status, setStatus] = React.useState<'idle' | 'sending' | 'success' | 'error'>('idle');
 
@@ -1413,40 +1413,86 @@ export function EmailEngineDiagnostics() {
     }
   };
 
+  const resetPWA = () => {
+    window.dispatchEvent(new CustomEvent('pwa_reset_state'));
+    alert('PWA Install state has been reset. The banner should now be visible on Home and Dashboard.');
+  };
+
+  const triggerPWA = () => {
+    window.dispatchEvent(new CustomEvent('beforeinstallprompt_custom_trigger'));
+  };
+
   return (
-    <div className="bg-white p-10 rounded-[3rem] border-4 border-slate-900 shadow-2xl relative overflow-hidden">
-      <div className="flex items-center gap-4 mb-6">
-        <div className="bg-blue-600 p-3 rounded-2xl">
-          <Mail className="w-6 h-6 text-white" />
+    <div className="space-y-8">
+      {/* Email Diagnostic */}
+      <div className="bg-white p-10 rounded-[3rem] border-4 border-slate-900 shadow-2xl relative overflow-hidden">
+        <div className="flex items-center gap-4 mb-6">
+          <div className="bg-blue-600 p-3 rounded-2xl">
+            <Mail className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Email Engine Diagnostic</h3>
+            <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Verify delivery to non-admin recipients</p>
+          </div>
         </div>
-        <div>
-          <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Email Engine Diagnostic</h3>
-          <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Verify delivery to non-admin recipients</p>
+
+        <div className="space-y-4">
+          <div className="flex flex-col md:flex-row gap-4">
+            <input 
+              type="email" 
+              placeholder="ENTER ANY EMAIL ADDRESS..." 
+              value={testEmail}
+              onChange={(e) => setTestEmail(e.target.value)}
+              className="flex-1 px-8 py-5 bg-slate-50 border-2 border-slate-200 rounded-2xl font-bold text-slate-900 outline-none focus:border-blue-600 transition-all uppercase placeholder:text-slate-300"
+            />
+            <button 
+              onClick={sendTest}
+              disabled={status === 'sending'}
+              className="px-10 py-5 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs tracking-[0.2em] hover:bg-blue-600 transition-all shadow-xl shadow-slate-200 active:scale-95 disabled:opacity-50"
+            >
+              {status === 'sending' ? 'DISPATCHING...' : 'DISPATCH VERIFICATION'}
+            </button>
+          </div>
+          {status === 'success' && <p className="text-green-600 text-[10px] font-black uppercase mt-2">Success! Verification dispatched to {testEmail}.</p>}
+          {status === 'error' && <p className="text-red-600 text-[10px] font-black uppercase mt-2">Diagnostic Fault: Check system logs.</p>}
         </div>
       </div>
 
-      <div className="space-y-4">
-        <div className="flex flex-col md:flex-row gap-4">
-          <input 
-            type="email" 
-            placeholder="ENTER ANY EMAIL ADDRESS..." 
-            value={testEmail}
-            onChange={(e) => setTestEmail(e.target.value)}
-            className="flex-1 px-8 py-5 bg-slate-50 border-2 border-slate-200 rounded-2xl font-bold text-slate-900 outline-none focus:border-blue-600 transition-all uppercase placeholder:text-slate-300"
-          />
+      {/* PWA Diagnostic */}
+      <div className="bg-white p-10 rounded-[3rem] border-4 border-blue-600 shadow-2xl relative overflow-hidden">
+        <div className="flex items-center gap-4 mb-6">
+          <div className="bg-blue-600 p-3 rounded-2xl">
+            <Smartphone className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter text-blue-600">PWA & Installation Controls</h3>
+            <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Manage app visibility and installation status</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <button 
-            onClick={sendTest}
-            disabled={status === 'sending'}
-            className="px-10 py-5 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs tracking-[0.2em] hover:bg-blue-600 transition-all shadow-xl shadow-slate-200 active:scale-95 disabled:opacity-50"
+            onClick={resetPWA}
+            className="p-6 bg-slate-50 border-2 border-slate-200 rounded-3xl hover:border-blue-600 hover:bg-blue-50 transition-all group text-left"
           >
-            {status === 'sending' ? 'DISPATCHING...' : 'DISPATCH VERIFICATION'}
+            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center border-2 border-slate-200 mb-4 group-hover:border-blue-200 group-hover:bg-blue-600 transition-all">
+              <RefreshCw className="w-5 h-5 text-slate-400 group-hover:text-white" />
+            </div>
+            <h4 className="font-black text-slate-900 uppercase tracking-tight">Unhide Install Banner</h4>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Clears local "Not Now" preference</p>
+          </button>
+
+          <button 
+            onClick={triggerPWA}
+            className="p-6 bg-slate-50 border-2 border-slate-200 rounded-3xl hover:border-blue-600 hover:bg-blue-50 transition-all group text-left"
+          >
+            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center border-2 border-slate-200 mb-4 group-hover:border-blue-200 group-hover:bg-blue-600 transition-all">
+              <Download className="w-5 h-5 text-slate-400 group-hover:text-white" />
+            </div>
+            <h4 className="font-black text-slate-900 uppercase tracking-tight">Force Trigger Popup</h4>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Directly launches native install modal</p>
           </button>
         </div>
-        {status === 'success' && <p className="text-green-600 text-[10px] font-black uppercase mt-2">Success! Verification dispatched to {testEmail}.</p>}
-        {status === 'error' && <p className="text-red-600 text-[10px] font-black uppercase mt-2">Diagnostic Fault: Check system logs.</p>}
-        <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest text-center italic">
-          Verification bypasses standard relays to test core Mail Engine connectivity.
-        </p>
       </div>
     </div>
   );

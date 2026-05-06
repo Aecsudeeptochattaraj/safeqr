@@ -31,7 +31,7 @@ import {
   BarChart, Bar, Cell, Legend
 } from 'recharts';
 import { format, subDays, startOfDay, endOfDay, isWithinInterval, startOfWeek, startOfMonth } from 'date-fns';
-import { InsightsDashboard, LiveActivity, ScanTrends, AuditLogs, InventorySupplyChain, SmartInsights, FleetManagement, FinancialsManagement, FutureProjection, PaymentVerificationModule, FeedbackManagement, EmailEngineDiagnostics } from './InsightsComponents';
+import { InsightsDashboard, LiveActivity, ScanTrends, AuditLogs, InventorySupplyChain, SmartInsights, FleetManagement, FinancialsManagement, FutureProjection, PaymentVerificationModule, FeedbackManagement, SystemDiagnostics } from './InsightsComponents';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -404,7 +404,7 @@ export default function AdminDashboard() {
       {view === 'fleet' && <FleetManagement vehicles={rawData.vehicles} payments={paymentsData} users={rawData.allUsers} cn={cn} logs={allLogs} />}
       {view === 'projection' && <FutureProjection />}
       {view === 'feedback' && <FeedbackManagement feedbacks={feedbacks} />}
-      {view === 'diagnostics' && <EmailEngineDiagnostics />}
+      {view === 'diagnostics' && <SystemDiagnostics />}
       {view === 'users' && <UserManagement />}
       {view === 'danger_zone' && <DangerZone />}
     </div>

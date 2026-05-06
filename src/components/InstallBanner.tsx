@@ -12,6 +12,13 @@ export function InstallBanner() {
     
     const dismissed = localStorage.getItem('pwa_banner_dismissed') === 'true';
     setIsDismissed(dismissed);
+
+    const resetHandler = () => {
+      localStorage.removeItem('pwa_banner_dismissed');
+      setIsDismissed(false);
+    };
+    window.addEventListener('pwa_reset_state', resetHandler);
+    return () => window.removeEventListener('pwa_reset_state', resetHandler);
   }, []);
 
   const triggerPrompt = () => {
