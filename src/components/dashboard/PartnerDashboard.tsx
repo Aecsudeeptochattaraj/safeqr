@@ -30,6 +30,8 @@ function StatTile({ label, value, color = "bg-blue-600" }: { label: string, valu
   );
 }
 
+import { InstallBanner } from '../InstallBanner';
+
 export default function PartnerDashboard() {
   const { user } = useAuth();
   const [stats, setStats] = useState({ mappedVehicles: 0, earnings: 0, totalStock: 0, availableStock: 0 });
@@ -237,46 +239,9 @@ export default function PartnerDashboard() {
         </div>
       </div>
 
-      {/* PWA Promo for Partners */}
-      {!isPWA && (
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-10 relative overflow-hidden"
-        >
-          <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-[32px] p-8 md:p-10 text-white shadow-2xl shadow-slate-200 border border-white/5">
-            <div className="absolute top-0 right-0 p-8 opacity-10 scale-150 rotate-12 hidden md:block">
-              <Smartphone className="w-64 h-64" />
-            </div>
-            
-            <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-10">
-              <div className="flex flex-col md:flex-row items-center gap-8 text-center md:text-left">
-                <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center shadow-lg shadow-blue-500/20">
-                  <Download className="w-10 h-10 text-white animate-bounce" />
-                </div>
-                <div>
-                  <div className="flex items-center justify-center md:justify-start gap-3 mb-2">
-                    <span className="px-3 py-1 bg-blue-500 rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg shadow-blue-500/20">Native Partner App</span>
-                    <h2 className="text-3xl font-black italic tracking-tighter uppercase leading-none">Partner Portal</h2>
-                  </div>
-                  <p className="text-slate-300 text-sm font-bold uppercase tracking-widest opacity-80 max-w-md">
-                    Onboard customers and print QR stickers directly from your home screen.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex flex-col items-center md:items-end gap-4 w-full md:w-auto">
-                <button 
-                  onClick={() => window.dispatchEvent(new Event('beforeinstallprompt_custom_trigger'))}
-                  className="w-full md:w-auto px-12 py-5 bg-white text-slate-900 rounded-2xl font-black text-xs uppercase tracking-[0.3em] hover:bg-blue-50 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl flex items-center justify-center gap-3"
-                >
-                  Get Mobile App
-                </button>
-              </div>
-            </div>
-          </div>
-        </motion.div>
-      )}
+      <div className="mb-10">
+        <InstallBanner />
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
         <StatTile label="Total Earnings" value={`₹${stats.earnings}`} color="bg-green-600" />

@@ -50,6 +50,8 @@ const StatCard = ({ icon: Icon, label, value, color }: { icon: any, label: strin
 
 type TimeRange = 'all' | 'today' | 'week' | 'month' | 'year' | 'custom';
 
+import { InstallBanner } from '../InstallBanner';
+
 export default function AdminDashboard() {
   const [timeRange, setTimeRange] = useState<TimeRange>('month');
   const [isMobileDropdownOpen, setIsMobileDropdownOpen] = useState(false);
@@ -287,50 +289,7 @@ export default function AdminDashboard() {
       
       {view === 'overview' && (
         <div className="space-y-12">
-          {/* PWA Promo for Admins */}
-          {!isPWA && (
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="relative overflow-hidden"
-            >
-              <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-[32px] p-8 md:p-10 text-white shadow-2xl shadow-slate-200 border border-white/5">
-                <div className="absolute top-0 right-0 p-8 opacity-10 scale-150 rotate-12 hidden md:block">
-                  <Smartphone className="w-64 h-64" />
-                </div>
-                
-                <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-10">
-                  <div className="flex flex-col md:flex-row items-center gap-8 text-center md:text-left">
-                    <div className="w-20 h-20 bg-white/10 backdrop-blur-md rounded-3xl flex items-center justify-center shadow-inner border border-white/20">
-                      <LayoutDashboard className="w-10 h-10 text-white" />
-                    </div>
-                    <div>
-                      <div className="flex items-center justify-center md:justify-start gap-3 mb-2">
-                        <span className="px-3 py-1 bg-blue-600 rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-lg shadow-blue-500/20">System Native</span>
-                        <h2 className="text-3xl font-black italic tracking-tighter uppercase leading-none">Admin Console App</h2>
-                      </div>
-                      <p className="text-slate-300 text-sm font-bold uppercase tracking-widest opacity-80 max-w-md">
-                        Monitor global telemetry with zero latency from your home screen.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col items-center md:items-end gap-4 w-full md:w-auto">
-                    <button 
-                      onClick={() => window.dispatchEvent(new Event('beforeinstallprompt_custom_trigger'))}
-                      className="w-full md:w-auto px-12 py-5 bg-white text-slate-900 rounded-2xl font-black text-xs uppercase tracking-[0.3em] hover:bg-slate-50 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl flex items-center justify-center gap-3"
-                    >
-                      Install Console
-                    </button>
-                    <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                      <ShieldCheck className="w-3 h-3 text-blue-500" />
-                      Zero Latency Feed
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
+          <InstallBanner />
 
           {/* Proactive Intelligence Alerts */}
           <div className="space-y-4">
