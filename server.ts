@@ -5,6 +5,7 @@ import sharp from 'sharp';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
+import nodemailer from 'nodemailer';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -163,6 +164,59 @@ apiRouter.post('/scanVehicleDetails', upload.single('image'), async (req, res) =
 });
 
 apiRouter.get('/test', (req, res) => res.json({ status: 'active', ts: Date.now() }));
+
+// --- EMAIL ENGINE (FREE / GMAIL SMTP) ---
+let transporter: nodemailer.Transporter | null = null;
+
+const getTransporter = () => {
+  if (!transporter) {
+    const user = process.env.GMAIL_USER;
+    const pass = process.env.GMAIL_APP_PASSWORD;
+
+    if (!user || !pass) {
+      console.warn("[MAIL] Credentials missing. Email functionality will be mocked.");
+      return null;
+    }
+
+    transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user, pass }
+    });
+  }
+  return transporter;
+};
+
+apiRouter.post('/send-email', async (req, res) => {
+  const { to, subject, html, previewText } = req.body;
+  
+  if (!to || !subject || !html) {
+    return res.status(400).json({ error: 'MISSING_FIELDS', message: 'Recipient, subject, and content are required.' });
+  }
+
+  const mailer = getTransporter();
+  
+  if (!mailer) {
+    console.log(`[MAIL-MOCK] To: ${to}, Subject: ${subject}`);
+    return res.json({ success: true, message: 'Email mocked (Credentials missing)', mocked: true });
+  }
+
+  try {
+    const userEmail = process.env.GMAIL_USER;
+    await mailer.sendMail({
+      from: `"MyParkSaathi" <${userEmail}>`,
+      to,
+      subject,
+      html,
+      text: previewText || subject // Fallback for clients without HTML support
+    });
+    
+    console.log(`[MAIL-SUCCESS] Sent to ${to}`);
+    res.json({ success: true });
+  } catch (err: any) {
+    console.error("[MAIL-ERROR]", err);
+    res.status(500).json({ error: 'EMAIL_FAILED', message: err.message });
+  }
+});
 
 // Global API Error Handler - MUST BE LAST in the router to catch middleware errors (like Multer)
 apiRouter.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

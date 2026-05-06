@@ -1,5 +1,7 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
+import { useEffect } from 'react';
+import { logEvent } from './lib/firebase';
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
 import Landing from './pages/Landing';
@@ -10,6 +12,20 @@ import RegisterVehicle from './pages/RegisterVehicle';
 import PartnerOnboarding from './pages/PartnerOnboarding';
 
 import { InstallPWA } from './components/InstallPWA';
+
+function PageTracker() {
+  const location = useLocation();
+
+  useEffect(() => {
+    logEvent('page_view', {
+      page_path: location.pathname,
+      page_search: location.search,
+      page_title: document.title
+    });
+  }, [location]);
+
+  return null;
+}
 
 export default function App() {
   const { user, loading } = useAuth();
@@ -27,6 +43,7 @@ export default function App() {
 
   return (
     <Router>
+      <PageTracker />
       <div className="flex flex-col min-h-screen font-sans selection:bg-blue-100 selection:text-blue-900">
         <InstallPWA />
         <Navbar />

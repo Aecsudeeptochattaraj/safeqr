@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Download, X, Smartphone, Info, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { logEvent } from '../lib/firebase';
 
 export function InstallPWA() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -21,6 +22,8 @@ export function InstallPWA() {
       e.preventDefault();
       setDeferredPrompt(e);
       
+      logEvent('pwa_prompt_available');
+
       // Auto-show if not dismissed in last 24 hours and not already installed
       const dismissedAt = localStorage.getItem('pwa_install_dismissed');
       const isDismissedRecently = dismissedAt && (Date.now() - parseInt(dismissedAt) < 24 * 60 * 60 * 1000);
@@ -52,6 +55,7 @@ export function InstallPWA() {
   }, []);
 
   const handleInstall = async () => {
+    logEvent('pwa_install_click', { platform: isIOS ? 'ios' : 'android_desktop' });
     if (deferredPrompt) {
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
@@ -60,7 +64,10 @@ export function InstallPWA() {
       setIsVisible(false);
       
       if (outcome === 'accepted') {
+        logEvent('pwa_install_accepted');
         localStorage.setItem('pwa_installed', 'true');
+      } else {
+        logEvent('pwa_install_dismissed_native');
       }
     } else if (isIOS) {
       // iOS users just need to follow the share instruction
@@ -74,6 +81,7 @@ export function InstallPWA() {
   };
 
   const handleDismiss = () => {
+    logEvent('pwa_install_dismissed_ui');
     setIsVisible(false);
     localStorage.setItem('pwa_install_dismissed', Date.now().toString());
   };

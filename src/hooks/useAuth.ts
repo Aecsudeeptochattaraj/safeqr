@@ -4,6 +4,8 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { AppUser } from '../types';
 
+import { EmailService, EmailEventType } from '../services/emailService';
+
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<AppUser | null>(null);
@@ -14,6 +16,7 @@ export function useAuth() {
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       console.log('Auth state changed:', firebaseUser?.email);
+      const isNewlyLoggedIn = !user && firebaseUser;
       setUser(firebaseUser);
       
       if (unsubscribeProfile) {
@@ -33,6 +36,7 @@ export function useAuth() {
         // Initial fetch to speed up first paint and handle new user registration
         const docSnap = await getDoc(userRef);
         
+        let fetchedProfile: AppUser | null = null;
         if (!docSnap.exists()) {
           console.log('Creating new user profile...');
           const isSuperAdmin = firebaseUser.email === 'aecsudeepto80@gmail.com';
@@ -44,6 +48,7 @@ export function useAuth() {
             createdAt: serverTimestamp(),
           };
           await setDoc(userRef, newProfile);
+          fetchedProfile = newProfile;
           setProfile(newProfile);
         } else {
           const data = docSnap.data() as AppUser;
@@ -52,7 +57,19 @@ export function useAuth() {
              await setDoc(userRef, { role: 'admin' }, { merge: true });
              data.role = 'admin';
           }
+          fetchedProfile = data;
           setProfile(data);
+        }
+
+        // Send login email only once when the user first logs in during this session
+        if (isNewlyLoggedIn && fetchedProfile) {
+          EmailService.send(EmailEventType.LOGIN_SUCCESS, {
+            UserName: fetchedProfile.displayName || 'User',
+            Email: fetchedProfile.email,
+            Time: new Date().toLocaleString(),
+            Device: navigator.userAgent,
+            Location: 'Detected via Web Browser'
+          });
         }
 
         // Now setup real-time listener for updates (e.g. role changes, profile edits)
