@@ -3,7 +3,7 @@ import { db } from '../../lib/firebase';
 import { collection, query, getDocs, limit, serverTimestamp, writeBatch, doc, where, updateDoc, onSnapshot, addDoc, deleteDoc } from 'firebase/firestore';
 import { AppUser, QRInventory, LogEntry } from '../../types';
 import { useAuth } from '../../hooks/useAuth';
-import { Users, Car, Coins, ShieldCheck, QrCode, Package, Download, UserMinus, Layers, Loader2, Printer, ExternalLink, Trash2, Repeat, AlertTriangle, CheckCircle2, TrendingUp, Activity, Clock, PieChart, Info, Search, UserX, UserCheck, ShieldOff, Eye, Map as MapIcon, List, ChevronDown, LayoutDashboard, MessageSquare, Smartphone } from 'lucide-react';
+import { Users, Car, Coins, ShieldCheck, QrCode, Package, Download, UserMinus, Layers, Loader2, Printer, ExternalLink, Trash2, Repeat, AlertTriangle, CheckCircle2, TrendingUp, Activity, Clock, PieChart, Info, Search, UserX, UserCheck, ShieldOff, Eye, Map as MapIcon, List, ChevronDown, LayoutDashboard, MessageSquare, Smartphone, RefreshCw, Mail } from 'lucide-react';
 
 const viewConfig = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
@@ -17,6 +17,7 @@ const viewConfig = [
   { id: 'projection', label: '5Y Projection', icon: TrendingUp },
   { id: 'feedback', label: 'Feedback', icon: MessageSquare },
   { id: 'users', label: 'Users', icon: Users },
+  { id: 'diagnostics', label: 'Diagnostics', icon: RefreshCw },
   { id: 'danger_zone', label: 'Danger Zone', icon: AlertTriangle },
 ] as const;
 import { clsx, type ClassValue } from 'clsx';
@@ -30,7 +31,7 @@ import {
   BarChart, Bar, Cell, Legend
 } from 'recharts';
 import { format, subDays, startOfDay, endOfDay, isWithinInterval, startOfWeek, startOfMonth } from 'date-fns';
-import { InsightsDashboard, LiveActivity, ScanTrends, AuditLogs, InventorySupplyChain, SmartInsights, FleetManagement, FinancialsManagement, FutureProjection, PaymentVerificationModule, FeedbackManagement } from './InsightsComponents';
+import { InsightsDashboard, LiveActivity, ScanTrends, AuditLogs, InventorySupplyChain, SmartInsights, FleetManagement, FinancialsManagement, FutureProjection, PaymentVerificationModule, FeedbackManagement, EmailEngineDiagnostics } from './InsightsComponents';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -67,7 +68,7 @@ export default function AdminDashboard() {
     scansMonth: 0,
     scanTrend: 0 
   });
-  const [view, setView] = useState<'overview' | 'insights' | 'feedback' | 'supply_chain' | 'audit_logs' | 'qr_management' | 'fleet' | 'users' | 'financials' | 'projection' | 'payments'>('overview');
+  const [view, setView] = useState<'overview' | 'insights' | 'feedback' | 'supply_chain' | 'audit_logs' | 'qr_management' | 'fleet' | 'users' | 'financials' | 'projection' | 'payments' | 'diagnostics'>('overview');
   const [isPWA, setIsPWA] = useState(false);
   const [isInIframe, setIsInIframe] = useState(false);
 
@@ -403,6 +404,7 @@ export default function AdminDashboard() {
       {view === 'fleet' && <FleetManagement vehicles={rawData.vehicles} payments={paymentsData} users={rawData.allUsers} cn={cn} logs={allLogs} />}
       {view === 'projection' && <FutureProjection />}
       {view === 'feedback' && <FeedbackManagement feedbacks={feedbacks} />}
+      {view === 'diagnostics' && <EmailEngineDiagnostics />}
       {view === 'users' && <UserManagement />}
       {view === 'danger_zone' && <DangerZone />}
     </div>

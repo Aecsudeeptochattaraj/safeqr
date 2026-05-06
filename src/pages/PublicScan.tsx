@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { db } from '../lib/firebase';
 import { doc, getDoc, collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { Vehicle } from '../types';
+import { EmailService, EmailEventType } from '../services/emailService';
+import { Vehicle, AppUser } from '../types';
 import { Phone, MessageCircle, AlertCircle, Shield, Camera, Send, CheckCircle2, RefreshCw, MapPin, MessageSquare, Star } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
@@ -190,9 +191,30 @@ export default function PublicScan() {
 
   const handleVerify = () => {
     if (captchaInput.toUpperCase() === captchaText) {
-      setIsVerified(true);
-      // Re-trigger geolocation on valid interaction for better accuracy
-      if ("geolocation" in navigator) {
+            setIsVerified(true);
+            // Re-trigger geolocation on valid interaction for better accuracy
+            
+            // Notify Owner
+            if (vehicle) {
+              getDoc(doc(db, 'users', vehicle.ownerUid)).then(userSnap => {
+                if (userSnap.exists()) {
+                  const owner = userSnap.data() as AppUser;
+                  if (owner.email) {
+                    EmailService.send(EmailEventType.QR_SCAN_ALERT, {
+                      UserName: owner.displayName || 'Vehicle Owner',
+                      Email: owner.email,
+                      VehicleNumber: vehicle.vehicleNumber,
+                      ScannerName: 'Public Visitor',
+                      ScannerPhone: 'Authorized Session',
+                      Location: currentLocation ? `${currentLocation.lat.toFixed(4)}, ${currentLocation.lng.toFixed(4)}` : 'Unknown Location',
+                      Time: new Date().toLocaleString()
+                    }).catch(err => console.error("Scan alert email failed:", err));
+                  }
+                }
+              });
+            }
+
+            if ("geolocation" in navigator) {
         navigator.geolocation.getCurrentPosition(
           (pos) => {
             const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };

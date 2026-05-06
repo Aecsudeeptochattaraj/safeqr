@@ -16,9 +16,12 @@ const FeatureBubble = ({ icon: Icon, title, className = "" }: { icon: any, title
   </motion.div>
 );
 
+import { InstallBanner } from '../components/InstallBanner';
+
 export default function Landing() {
   return (
     <div className="bg-paper overflow-hidden">
+      <InstallBanner />
       {/* Hero Section - Split Layout Editorial */}
       <section className="relative min-h-[90vh] flex flex-col lg:flex-row border-b border-line">
         {/* Left Pane - Typography focus */}

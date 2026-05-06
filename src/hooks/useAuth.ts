@@ -62,14 +62,17 @@ export function useAuth() {
         }
 
         // Send login email only once when the user first logs in during this session
-        if (isNewlyLoggedIn && fetchedProfile) {
+        const sessionKey = `login_mail_sent_${firebaseUser.uid}`;
+        if (isNewlyLoggedIn && fetchedProfile && !sessionStorage.getItem(sessionKey)) {
           EmailService.send(EmailEventType.LOGIN_SUCCESS, {
             UserName: fetchedProfile.displayName || 'User',
             Email: fetchedProfile.email,
             Time: new Date().toLocaleString(),
             Device: navigator.userAgent,
             Location: 'Detected via Web Browser'
-          });
+          }).then(() => {
+            sessionStorage.setItem(sessionKey, 'true');
+          }).catch(err => console.error("Login email failed:", err));
         }
 
         // Now setup real-time listener for updates (e.g. role changes, profile edits)

@@ -191,6 +191,7 @@ const getTransporter = () => {
 
 apiRouter.post('/send-email', async (req, res) => {
   const { to, subject, html, previewText } = req.body;
+  console.log(`[MAIL-API] Attempting to send to: ${to}`);
   
   if (!to || !subject || !html) {
     return res.status(400).json({ error: 'MISSING_FIELDS', message: 'Recipient, subject, and content are required.' });

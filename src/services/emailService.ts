@@ -17,6 +17,8 @@ interface EmailData {
   Amount?: string;
   VehicleNumber?: string;
   ExpiryDate?: string;
+  ScannerName?: string;
+  ScannerPhone?: string;
 }
 
 export class EmailService {
@@ -45,7 +47,8 @@ export class EmailService {
       }
 
       const url = `${window.location.origin}/api/send-email`;
-      console.log(`[MAIL-CLIENT] Attempting absolute fetch to: ${url}`);
+      console.log(`[MAIL-CLIENT] Sending to: ${data.Email}, Type: ${type}`);
+      console.log(`[MAIL-CLIENT] Payload:`, { to: data.Email, subject: template.subject });
 
       const response = await fetch(url, {
         method: 'POST',

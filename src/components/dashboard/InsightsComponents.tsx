@@ -1,6 +1,7 @@
 import React from 'react';
 import { db } from '../../lib/firebase';
 import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { EmailService, EmailEventType } from '../../services/emailService';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, Cell, Legend, PieChart, Pie
@@ -1390,6 +1391,67 @@ export function FutureProjection() {
   );
 }
 
+export function EmailEngineDiagnostics() {
+  const [testEmail, setTestEmail] = React.useState('');
+  const [status, setStatus] = React.useState<'idle' | 'sending' | 'success' | 'error'>('idle');
+
+  const sendTest = async () => {
+    if (!testEmail) return;
+    setStatus('sending');
+    try {
+      await EmailService.send(EmailEventType.LOGIN_SUCCESS, {
+        UserName: 'Diagnostics Test User',
+        Email: testEmail,
+        Time: new Date().toLocaleTimeString(),
+        Location: 'Manual Diagnostic Test',
+        Device: 'Admin Console'
+      });
+      setStatus('success');
+    } catch (err) {
+      console.error(err);
+      setStatus('error');
+    }
+  };
+
+  return (
+    <div className="bg-white p-10 rounded-[3rem] border-4 border-slate-900 shadow-2xl relative overflow-hidden">
+      <div className="flex items-center gap-4 mb-6">
+        <div className="bg-blue-600 p-3 rounded-2xl">
+          <Mail className="w-6 h-6 text-white" />
+        </div>
+        <div>
+          <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Email Engine Diagnostic</h3>
+          <p className="text-xs text-slate-500 font-bold uppercase tracking-widest mt-1">Verify delivery to non-admin recipients</p>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="flex flex-col md:flex-row gap-4">
+          <input 
+            type="email" 
+            placeholder="ENTER ANY EMAIL ADDRESS..." 
+            value={testEmail}
+            onChange={(e) => setTestEmail(e.target.value)}
+            className="flex-1 px-8 py-5 bg-slate-50 border-2 border-slate-200 rounded-2xl font-bold text-slate-900 outline-none focus:border-blue-600 transition-all uppercase placeholder:text-slate-300"
+          />
+          <button 
+            onClick={sendTest}
+            disabled={status === 'sending'}
+            className="px-10 py-5 bg-slate-900 text-white rounded-2xl font-black uppercase text-xs tracking-[0.2em] hover:bg-blue-600 transition-all shadow-xl shadow-slate-200 active:scale-95 disabled:opacity-50"
+          >
+            {status === 'sending' ? 'DISPATCHING...' : 'DISPATCH VERIFICATION'}
+          </button>
+        </div>
+        {status === 'success' && <p className="text-green-600 text-[10px] font-black uppercase mt-2">Success! Verification dispatched to {testEmail}.</p>}
+        {status === 'error' && <p className="text-red-600 text-[10px] font-black uppercase mt-2">Diagnostic Fault: Check system logs.</p>}
+        <p className="text-[10px] text-slate-400 font-medium uppercase tracking-widest text-center italic">
+          Verification bypasses standard relays to test core Mail Engine connectivity.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function PaymentVerificationModule({ payments, users }: any) {
   const [filter, setFilter] = React.useState('pending');
   const [updating, setUpdating] = React.useState<string | null>(null);
@@ -1402,6 +1464,9 @@ export function PaymentVerificationModule({ payments, users }: any) {
   const handleAction = async (paymentId: string, vehicleId: string, action: 'verified' | 'rejected') => {
     setUpdating(paymentId);
     try {
+      const p = payments.find((pay: any) => pay.id === paymentId);
+      const user = users.find((u: any) => u.uid === p?.userId);
+      
       if (action === 'rejected') {
         const reason = prompt("Enter rejection reason (User will see this):");
         if (!reason) { setUpdating(null); return; }
@@ -1447,6 +1512,16 @@ export function PaymentVerificationModule({ payments, users }: any) {
         }
 
         await updateDoc(doc(db, 'vehicles', vehicleId), updates);
+
+        // 4. Notify User
+        if (user && user.email) {
+          EmailService.send(EmailEventType.PAYMENT_SUCCESS, {
+            UserName: user.displayName || 'Valued User',
+            Email: user.email,
+            VehicleNumber: vehicleData.vehicleNumber || 'Registered Vehicle',
+            Amount: p.amount?.toString() || '0'
+          }).catch(err => console.error("Email notification failed:", err));
+        }
       }
     } catch (err: any) {
       console.error("Verification Error:", err);
