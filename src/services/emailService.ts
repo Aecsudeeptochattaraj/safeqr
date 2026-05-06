@@ -44,11 +44,16 @@ export class EmailService {
           throw new Error('Unknown email event type');
       }
 
-      console.log(`[MAIL-CLIENT] Sending ${type} to ${data.Email}...`);
+      const url = `${window.location.origin}/api/send-email`;
+      console.log(`[MAIL-CLIENT] Attempting absolute fetch to: ${url}`);
 
-      const response = await fetch('/api/send-email', {
+      const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        mode: 'cors', // Explicitly set cors mode
         body: JSON.stringify({
           to: data.Email,
           subject: template.subject,
@@ -58,8 +63,13 @@ export class EmailService {
       });
 
       if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.message || 'Failed to send email');
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          errorData = { message: `Status ${response.status}: ${response.statusText}` };
+        }
+        throw new Error(errorData.message || 'Failed to send email');
       }
 
       const result = await response.json();

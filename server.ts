@@ -6,13 +6,15 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import nodemailer from 'nodemailer';
+import cors from 'cors';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = 3000;
 
-// 0. Body Parsers & Upload Config
-app.use(express.json({ limit: '2mb' })); // Reduced JSON limit to prevent large string attacks
+// 0. Middleware Config
+app.use(cors());
+app.use(express.json({ limit: '2mb' }));
 const upload = multer({ 
   storage: multer.memoryStorage(),
   limits: { fileSize: 8 * 1024 * 1024 } // 8MB hard limit
@@ -36,6 +38,7 @@ const apiRouter = express.Router();
 
 // Middleware: Strict JSON and No-Cache for API
 apiRouter.use((req, res, next) => {
+  console.log(`[API-ROUTER] Incoming: ${req.method} ${req.url}`);
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
   next();

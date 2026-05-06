@@ -30,6 +30,14 @@ function PageTracker() {
 export default function App() {
   const { user, loading } = useAuth();
 
+  useEffect(() => {
+    // API Connectivity Test
+    fetch(`${window.location.origin}/api/test`)
+      .then(r => r.json())
+      .then(d => console.log('[API-HEALTH] Connected:', d))
+      .catch(e => console.error('[API-HEALTH] Failed to reach backend:', e));
+  }, []);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">

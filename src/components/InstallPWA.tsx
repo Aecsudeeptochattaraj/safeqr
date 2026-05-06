@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Download, X, Smartphone, Info, ExternalLink } from 'lucide-react';
+import { Download, X, Smartphone, Info, ExternalLink, CheckCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { logEvent } from '../lib/firebase';
 
@@ -36,7 +36,11 @@ export function InstallPWA() {
     window.addEventListener('beforeinstallprompt', handler);
 
     const customTriggerHandler = () => {
-      setIsVisible(true);
+      if (deferredPrompt) {
+        handleInstall();
+      } else {
+        setIsVisible(true);
+      }
     };
     window.addEventListener('beforeinstallprompt_custom_trigger', customTriggerHandler);
 
@@ -54,6 +58,8 @@ export function InstallPWA() {
     };
   }, []);
 
+  const [isInstalled, setIsInstalled] = useState(false);
+
   const handleInstall = async () => {
     logEvent('pwa_install_click', { platform: isIOS ? 'ios' : 'android_desktop' });
     if (deferredPrompt) {
@@ -61,13 +67,17 @@ export function InstallPWA() {
       const { outcome } = await deferredPrompt.userChoice;
       console.log(`User response to install prompt: ${outcome}`);
       setDeferredPrompt(null);
-      setIsVisible(false);
       
       if (outcome === 'accepted') {
         logEvent('pwa_install_accepted');
-        localStorage.setItem('pwa_installed', 'true');
+        setIsInstalled(true);
+        setTimeout(() => {
+          setIsVisible(false);
+          localStorage.setItem('pwa_installed', 'true');
+        }, 3000);
       } else {
         logEvent('pwa_install_dismissed_native');
+        setIsVisible(false);
       }
     } else if (isIOS) {
       // iOS users just need to follow the share instruction
@@ -92,12 +102,34 @@ export function InstallPWA() {
     <AnimatePresence>
       {isVisible && (
         <motion.div 
-          initial={{ opacity: 0, scale: 0.9, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.9, y: 20 }}
+          initial={{ opacity: 0, scale: 0.8, y: 100, rotate: -5 }}
+          animate={{ 
+            opacity: 1, 
+            scale: 1, 
+            y: 0, 
+            rotate: 0,
+          }}
+          exit={{ opacity: 0, scale: 0.8, y: 100 }}
           className="fixed inset-x-4 bottom-4 md:bottom-8 md:right-8 md:left-auto z-[100] w-full max-w-sm mx-auto md:mx-0"
         >
-          <div className="bg-white rounded-[32px] shadow-2xl shadow-blue-900/20 border border-slate-100 overflow-hidden">
+          {/* Ding-Dong Sound Element (Visual Only) */}
+          <motion.div
+            animate={{ 
+              y: [0, -10, 0],
+              rotate: [0, -15, 15, -15, 15, 0]
+            }}
+            transition={{ 
+              delay: 0.5, 
+              duration: 1, 
+              repeat: 2,
+              repeatDelay: 3
+            }}
+            className="absolute -top-6 left-1/2 -translate-x-1/2 bg-amber-400 text-amber-950 text-[10px] font-black px-3 py-1 rounded-full shadow-lg z-10 border-2 border-white uppercase tracking-widest"
+          >
+            Ding Dong! 🔔
+          </motion.div>
+
+          <div className="bg-white rounded-[32px] shadow-2xl shadow-blue-900/40 border-4 border-blue-600 overflow-hidden relative">
             {/* Header with App Logo */}
             <div className="bg-blue-600 p-6 flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -119,54 +151,70 @@ export function InstallPWA() {
             </div>
 
             <div className="p-6">
-              {/* Benefits */}
-              <div className="space-y-4 mb-8">
-                <div className="flex items-start gap-4 p-3 bg-slate-50 rounded-2xl">
-                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                    <Download className="w-4 h-4 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-black text-slate-900 uppercase">Native Experience</p>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight mt-0.5">5x faster loading and smooth transitions.</p>
-                  </div>
+              {isInstalled ? (
+                <div className="py-12 text-center">
+                  <motion.div 
+                    initial={{ scale: 0 }}
+                    animate={{ scale: [0, 1.2, 1] }}
+                    className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6"
+                  >
+                    <CheckCircle className="w-10 h-10 text-green-600" />
+                  </motion.div>
+                  <h3 className="text-xl font-black text-slate-900 uppercase mb-2">Hooray! 🎉</h3>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Install Successful</p>
                 </div>
-                <div className="flex items-start gap-4 p-3 bg-slate-50 rounded-2xl">
-                  <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
-                    <Info className="w-4 h-4 text-amber-600" />
+              ) : (
+                <>
+                  {/* Benefits */}
+                  <div className="space-y-4 mb-8">
+                    <div className="flex items-start gap-4 p-3 bg-slate-50 rounded-2xl">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                        <Download className="w-4 h-4 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-slate-900 uppercase">Native Experience</p>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight mt-0.5">5x faster loading and smooth transitions.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-4 p-3 bg-slate-50 rounded-2xl">
+                      <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                        <Info className="w-4 h-4 text-amber-600" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-black text-slate-900 uppercase">Instant Access</p>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight mt-0.5">One-tap entry from your home screen.</p>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs font-black text-slate-900 uppercase">Instant Access</p>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight mt-0.5">One-tap entry from your home screen.</p>
-                  </div>
-                </div>
-              </div>
 
-              {/* iOS Manual Instructions */}
-              {isIOS && !deferredPrompt && (
-                <div className="mb-8 p-4 bg-amber-50 border border-amber-100 rounded-2xl text-center">
-                  <p className="text-[10px] text-amber-900 font-black uppercase leading-tight mb-3">Setup on iPhone/iPad</p>
-                  <div className="flex items-center justify-center gap-3">
-                    <span className="text-[9px] font-bold text-amber-700 bg-white px-2 py-1 rounded shadow-sm">1. Tap Share</span>
-                    <span className="text-[9px] font-bold text-amber-700 bg-white px-2 py-1 rounded shadow-sm">2. Add to Home Screen</span>
+                  {/* iOS Manual Instructions */}
+                  {isIOS && !deferredPrompt && (
+                    <div className="mb-8 p-4 bg-amber-50 border border-amber-100 rounded-2xl text-center">
+                      <p className="text-[10px] text-amber-900 font-black uppercase leading-tight mb-3">Setup on iPhone/iPad</p>
+                      <div className="flex items-center justify-center gap-3">
+                        <span className="text-[9px] font-bold text-amber-700 bg-white px-2 py-1 rounded shadow-sm">1. Tap Share</span>
+                        <span className="text-[9px] font-bold text-amber-700 bg-white px-2 py-1 rounded shadow-sm">2. Add to Home Screen</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3">
+                    <button 
+                      onClick={handleDismiss}
+                      className="flex-1 px-6 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-slate-200 transition-colors"
+                    >
+                      Not Now
+                    </button>
+                    <button 
+                      onClick={handleInstall}
+                      className="flex-3 px-8 py-4 bg-blue-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
+                    >
+                      {isIOS ? 'Got it!' : 'Install Now'}
+                    </button>
                   </div>
-                </div>
+                </>
               )}
-
-              {/* Action Buttons */}
-              <div className="flex gap-3">
-                <button 
-                  onClick={handleDismiss}
-                  className="flex-1 px-6 py-4 bg-slate-100 text-slate-600 rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-slate-200 transition-colors"
-                >
-                  Not Now
-                </button>
-                <button 
-                  onClick={handleInstall}
-                  className="flex-3 px-8 py-4 bg-blue-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
-                >
-                  {isIOS ? 'Got it!' : 'Install Now'}
-                </button>
-              </div>
             </div>
           </div>
         </motion.div>
