@@ -50,11 +50,19 @@ export function InstallBanner() {
           
           <motion.div
             initial={{ scale: 0 }}
-            animate={{ scale: [0, 1.2, 1] }}
-            transition={{ delay: 1, duration: 0.5 }}
-            className="absolute -top-3 -right-3 bg-amber-400 text-amber-950 text-[10px] font-black px-3 py-1 rounded-full border-4 border-white shadow-lg uppercase tracking-widest"
+            animate={{ 
+              scale: [0, 1.2, 1],
+              rotate: [0, -15, 15, -15, 15, 0]
+            }}
+            transition={{ 
+              delay: 1, 
+              duration: 1,
+              repeat: Infinity,
+              repeatDelay: 4
+            }}
+            className="absolute -top-3 -right-3 bg-amber-400 text-amber-950 text-[10px] font-black px-3 py-1 rounded-full border-4 border-white shadow-lg uppercase tracking-widest whitespace-nowrap"
           >
-            DING!
+            DING DONG! 🔔
           </motion.div>
         </div>
 

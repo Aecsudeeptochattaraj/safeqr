@@ -36,6 +36,7 @@ export function InstallPWA() {
     window.addEventListener('beforeinstallprompt', handler);
 
     const customTriggerHandler = () => {
+      console.log('[PWA] Custom trigger received. deferredPrompt:', !!deferredPrompt);
       if (deferredPrompt) {
         handleInstall();
       } else {
@@ -45,6 +46,7 @@ export function InstallPWA() {
     window.addEventListener('beforeinstallprompt_custom_trigger', customTriggerHandler);
 
     const installedHandler = () => {
+      console.log('[PWA] App installed successfully');
       setIsVisible(false);
       localStorage.setItem('pwa_installed', 'true');
       setIsStandalone(true);
@@ -56,37 +58,40 @@ export function InstallPWA() {
       window.removeEventListener('beforeinstallprompt_custom_trigger', customTriggerHandler);
       window.removeEventListener('appinstalled', installedHandler);
     };
-  }, []);
+  }, [deferredPrompt]); // Re-bind if deferredPrompt changes
 
   const [isInstalled, setIsInstalled] = useState(false);
 
   const handleInstall = async () => {
-    logEvent('pwa_install_click', { platform: isIOS ? 'ios' : 'android_desktop' });
+    logEvent('pwa_install_click', { platform: isIOS ? 'ios' : 'android_desktop', hasPrompt: !!deferredPrompt });
+    
     if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      console.log(`User response to install prompt: ${outcome}`);
-      setDeferredPrompt(null);
-      
-      if (outcome === 'accepted') {
-        logEvent('pwa_install_accepted');
-        setIsInstalled(true);
-        setTimeout(() => {
+      try {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        console.log(`[PWA] User choice: ${outcome}`);
+        setDeferredPrompt(null);
+        
+        if (outcome === 'accepted') {
+          logEvent('pwa_install_accepted');
+          setIsInstalled(true);
+          setTimeout(() => {
+            setIsVisible(false);
+            localStorage.setItem('pwa_installed', 'true');
+          }, 3000);
+        } else {
+          logEvent('pwa_install_dismissed_native');
           setIsVisible(false);
-          localStorage.setItem('pwa_installed', 'true');
-        }, 3000);
-      } else {
-        logEvent('pwa_install_dismissed_native');
-        setIsVisible(false);
+        }
+      } catch (err) {
+        console.error('[PWA] Install error:', err);
+        setIsVisible(true); // Show modal if native fails
       }
     } else if (isIOS) {
-      // iOS users just need to follow the share instruction
-      setIsVisible(false);
-      localStorage.setItem('pwa_installed', 'true'); // Assume they followed or will follow
+      setIsVisible(true); 
     } else {
-      // Fallback for non-iOS/non-prompt cases (e.g. Chrome on Windows without prompt)
-      setIsVisible(false);
-      alert('To install: Look for the [Add to Home Screen] or [Install] option in your browser menu (usually three dots ⋮ or a plus + icon in the address bar).');
+      // For Android/Desktop with no prompt, showing the modal is the right fallback
+      setIsVisible(true);
     }
   };
 
@@ -130,8 +135,15 @@ export function InstallPWA() {
           </motion.div>
 
           <div className="bg-white rounded-[32px] shadow-2xl shadow-blue-900/40 border-4 border-blue-600 overflow-hidden relative">
+            {/* Pulsing Highlight */}
+            <motion.div 
+              animate={{ opacity: [0.1, 0.3, 0.1] }}
+              transition={{ repeat: Infinity, duration: 2 }}
+              className="absolute inset-0 bg-blue-50/50 pointer-events-none"
+            />
+            
             {/* Header with App Logo */}
-            <div className="bg-blue-600 p-6 flex items-center justify-between">
+            <div className="relative bg-blue-600 p-6 flex items-center justify-between">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-lg">
                   <Smartphone className="w-6 h-6 text-blue-600" />
@@ -198,6 +210,17 @@ export function InstallPWA() {
                     </div>
                   )}
 
+                  {/* Android/Others Manual Instructions (when native prompt fails) */}
+                  {!isIOS && !deferredPrompt && (
+                    <div className="mb-8 p-4 bg-blue-50 border border-blue-100 rounded-2xl text-center">
+                      <p className="text-[10px] text-blue-900 font-black uppercase leading-tight mb-3">One last step to install</p>
+                      <div className="space-y-2">
+                        <p className="text-[9px] font-bold text-blue-700">1. Tap the three dots <span className="text-sm">⋮</span> in your browser menu</p>
+                        <p className="text-[9px] font-bold text-blue-700">2. Tap <span className="bg-blue-600 text-white px-2 py-0.5 rounded">Install App</span> or <span className="bg-blue-600 text-white px-2 py-0.5 rounded">Add to Home screen</span></p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Action Buttons */}
                   <div className="flex gap-3">
                     <button 
@@ -206,12 +229,22 @@ export function InstallPWA() {
                     >
                       Not Now
                     </button>
-                    <button 
-                      onClick={handleInstall}
-                      className="flex-3 px-8 py-4 bg-blue-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
-                    >
-                      {isIOS ? 'Got it!' : 'Install Now'}
-                    </button>
+                    {(deferredPrompt || isIOS) && (
+                      <button 
+                        onClick={handleInstall}
+                        className="flex-3 px-8 py-4 bg-blue-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
+                      >
+                        {isIOS ? 'Got it!' : 'Install Now'}
+                      </button>
+                    )}
+                    {!isIOS && !deferredPrompt && (
+                      <button 
+                        onClick={handleDismiss}
+                        className="flex-3 px-8 py-4 bg-blue-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
+                      >
+                        Okay, Done!
+                      </button>
+                    )}
                   </div>
                 </>
               )}

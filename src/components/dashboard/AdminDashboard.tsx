@@ -287,10 +287,12 @@ export default function AdminDashboard() {
         </div>
       </div>
       
+      <div className="mb-12">
+        <InstallBanner />
+      </div>
+
       {view === 'overview' && (
         <div className="space-y-12">
-          <InstallBanner />
-
           {/* Proactive Intelligence Alerts */}
           <div className="space-y-4">
             {rawData.inventory.length > 100 && stats.availableQRs < 10 && (
